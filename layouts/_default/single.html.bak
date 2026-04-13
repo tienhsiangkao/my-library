@@ -3,48 +3,106 @@
 <head>
     <meta charset="utf-8">
     <title>Pretext Engine - {{ .Title }}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
 
     <style>
-        * { box-sizing: border-box; }
+        :root {
+            --bg: #121212;
+            --panel: #1a1a1a;
+            --panel-2: #222;
+            --border: #333;
+            --text: #d1d1d1;
+            --muted: #9a9a9a;
+            --primary: #007aff;
+            --paper: #ffffff;
+            --paper-text: #333333;
+            --shadow: 0 10px 40px rgba(0,0,0,0.5);
+            --sidebar-width: 280px;
+            --topbar-height: 56px;
+            --controls-height: 60px;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
 
         html, body {
             margin: 0;
             padding: 0;
             height: 100%;
-            background: #121212;
-            color: #d1d1d1;
+            background: var(--bg);
+            color: var(--text);
             font-family: "PingFang SC", "STHeiti", "Noto Sans CJK SC", sans-serif;
         }
 
         body {
-            display: flex;
-            height: 100vh;
+            min-height: 100dvh;
             overflow: hidden;
         }
 
+        #app {
+            display: flex;
+            height: 100dvh;
+            min-height: 100dvh;
+            width: 100%;
+            overflow: hidden;
+            background: var(--bg);
+        }
+
+        #sidebar-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 40;
+        }
+
         #sidebar {
-            width: 260px;
-            background: #1a1a1a;
-            border-right: 1px solid #333;
+            width: var(--sidebar-width);
+            background: var(--panel);
+            border-right: 1px solid var(--border);
             overflow-y: auto;
-            padding: 20px;
+            padding: 18px 16px 24px;
             flex-shrink: 0;
+            z-index: 50;
+        }
+
+        #sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
         }
 
         #sidebar h3 {
-            margin-top: 0;
-            color: #007aff;
+            margin: 0;
+            color: var(--primary);
+            font-size: 18px;
+        }
+
+        #closeSidebarBtn {
+            display: none;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 24px;
+            line-height: 1;
+            padding: 4px 8px;
+            cursor: pointer;
         }
 
         .toc-item {
             cursor: pointer;
-            padding: 10px 6px;
+            padding: 10px 8px;
             border-bottom: 1px solid #2a2a2a;
-            color: #9a9a9a;
+            color: var(--muted);
             font-size: 14px;
             line-height: 1.5;
             word-break: break-word;
@@ -53,7 +111,7 @@
 
         .toc-item:hover {
             color: #fff;
-            background: #222;
+            background: var(--panel-2);
         }
 
         .toc-item.active {
@@ -63,29 +121,81 @@
 
         #main {
             flex: 1;
+            min-width: 0;
             display: flex;
             flex-direction: column;
+            background: var(--bg);
+        }
+
+        #topbar {
+            display: none;
+            height: var(--topbar-height);
+            min-height: var(--topbar-height);
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: env(safe-area-inset-top) 12px 0;
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+        }
+
+        #topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        #topbar-right {
+            width: 8px;
+            flex-shrink: 0;
+        }
+
+        #backBtn,
+        #menuBtn {
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 22px;
+            line-height: 1;
+            padding: 8px 10px;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+
+        #backBtn:hover,
+        #menuBtn:hover {
+            background: rgba(255,255,255,0.06);
+        }
+
+        #topbar-title {
+            flex: 1;
             min-width: 0;
-            background: #121212;
+            font-size: 15px;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text);
         }
 
         #viewer-wrap {
             flex: 1;
+            min-height: 0;
             overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: stretch;
             padding: 20px;
-            min-height: 0;
         }
 
         .viewer-panel {
-            width: min(90%, 860px);
+            width: min(92%, 920px);
             height: 100%;
-            background: #fff;
-            color: #333;
-            border-radius: 6px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            background: var(--paper);
+            color: var(--paper-text);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
             overflow: hidden;
             display: none;
         }
@@ -95,7 +205,7 @@
         }
 
         #viewer-flow {
-            padding: 50px;
+            padding: 48px 52px;
             overflow-y: auto;
             line-height: 1.9;
             font-size: 18px;
@@ -109,8 +219,8 @@
         #viewer-flow h6 {
             position: static !important;
             display: block !important;
-            line-height: 1.5 !important;
-            margin: 1.5em 0 0.9em 0 !important;
+            line-height: 1.45 !important;
+            margin: 1.4em 0 0.85em 0 !important;
             color: #111 !important;
             letter-spacing: normal !important;
             float: none !important;
@@ -154,44 +264,55 @@
             background: #fff;
         }
 
+        #viewer-rendition iframe {
+            border: 0;
+            width: 100%;
+            height: 100%;
+        }
+
         .controls {
-            height: 60px;
+            min-height: var(--controls-height);
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 24px;
-            background: #1a1a1a;
+            gap: 16px;
+            background: var(--panel);
             border-top: 1px solid #2a2a2a;
             flex-shrink: 0;
-            padding: 0 16px;
+            padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
         }
 
-        button {
-            padding: 10px 22px;
+        button.nav-btn {
+            padding: 10px 18px;
             cursor: pointer;
-            background: #007aff;
+            background: var(--primary);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             font-weight: 700;
             font-size: 14px;
+            min-width: 84px;
         }
 
-        button:hover {
+        button.nav-btn:hover {
             filter: brightness(1.05);
         }
 
-        button:disabled {
+        button.nav-btn:disabled {
             opacity: 0.45;
             cursor: not-allowed;
             filter: none;
         }
 
         #page-info {
-            min-width: 220px;
+            min-width: 0;
+            flex: 1;
             text-align: center;
-            color: #d1d1d1;
+            color: var(--text);
             font-size: 14px;
+            line-height: 1.4;
+            padding: 0 8px;
+            word-break: break-word;
         }
 
         .status {
@@ -204,62 +325,164 @@
             color: #c62828;
         }
 
-        @media (max-width: 900px) {
-            #sidebar {
-                width: 220px;
-            }
-
-            #viewer-flow {
-                padding: 28px 24px;
-                font-size: 17px;
+        @media (max-width: 1024px) {
+            #viewer-wrap {
+                padding: 14px;
             }
 
             .viewer-panel {
                 width: 100%;
             }
+
+            #viewer-flow {
+                padding: 32px 28px;
+                font-size: 17px;
+            }
         }
 
-        @media (max-width: 680px) {
-            body {
-                flex-direction: column;
+        @media (max-width: 820px) {
+            #topbar {
+                display: flex;
             }
 
             #sidebar {
-                width: 100%;
-                height: 180px;
-                border-right: none;
-                border-bottom: 1px solid #333;
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100dvh;
+                max-width: 86vw;
+                width: min(var(--sidebar-width), 86vw);
+                transform: translateX(-100%);
+                transition: transform 0.22s ease;
+                box-shadow: 0 12px 36px rgba(0,0,0,0.45);
+                border-right: 1px solid var(--border);
+                padding-top: calc(16px + env(safe-area-inset-top));
+            }
+
+            #closeSidebarBtn {
+                display: inline-block;
+            }
+
+            body.sidebar-open #sidebar {
+                transform: translateX(0);
+            }
+
+            body.sidebar-open #sidebar-overlay {
+                opacity: 1;
+                pointer-events: auto;
             }
 
             #viewer-wrap {
-                padding: 12px;
+                padding: 10px;
+            }
+
+            .viewer-panel {
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            #viewer-flow {
+                padding: 22px 18px 28px;
+                font-size: 16px;
+                line-height: 1.85;
             }
 
             .controls {
-                gap: 12px;
+                gap: 10px;
+                padding-left: 10px;
+                padding-right: 10px;
+            }
+
+            button.nav-btn {
+                min-width: 72px;
+                padding: 10px 14px;
+                font-size: 13px;
+            }
+
+            #page-info {
+                font-size: 13px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            :root {
+                --topbar-height: 52px;
+                --controls-height: 58px;
+            }
+
+            #viewer-flow {
+                padding: 18px 14px 24px;
+                font-size: 15.5px;
+                line-height: 1.8;
+            }
+
+            #viewer-flow h1,
+            #viewer-flow h2,
+            #viewer-flow h3,
+            #viewer-flow h4,
+            #viewer-flow h5,
+            #viewer-flow h6 {
+                margin: 1.2em 0 0.75em 0 !important;
+                line-height: 1.35 !important;
+            }
+
+            .controls {
+                gap: 8px;
+            }
+
+            button.nav-btn {
+                min-width: 64px;
+                padding: 9px 12px;
+                border-radius: 7px;
+            }
+
+            #page-info {
+                font-size: 12px;
+            }
+
+            .toc-item {
+                font-size: 13px;
+                padding-top: 11px;
+                padding-bottom: 11px;
             }
         }
     </style>
 </head>
 <body>
-    <div id="sidebar">
-        <h3>目 录</h3>
-        <div id="toc-list">正在提取目录...</div>
-    </div>
+    <div id="sidebar-overlay"></div>
 
-    <div id="main">
-        <div id="viewer-wrap">
-            <div id="viewer-flow" class="viewer-panel active">
-                <h2 class="status">正在解析文本...</h2>
+    <div id="app">
+        <aside id="sidebar" aria-label="Table of contents">
+            <div id="sidebar-header">
+                <h3>目录</h3>
+                <button id="closeSidebarBtn" type="button" aria-label="Close menu">×</button>
             </div>
-            <div id="viewer-rendition" class="viewer-panel"></div>
-        </div>
+            <div id="toc-list">正在提取目录...</div>
+        </aside>
 
-        <div class="controls">
-            <button id="prevBtn" disabled>上一章</button>
-            <span id="page-info">第 0 章</span>
-            <button id="nextBtn" disabled>下一章</button>
-        </div>
+        <main id="main">
+            <div id="topbar">
+                <div id="topbar-left">
+                    <button id="backBtn" type="button" aria-label="Go back">←</button>
+                    <button id="menuBtn" type="button" aria-label="Open menu">☰</button>
+                </div>
+                <div id="topbar-title">{{ .Title }}</div>
+                <div id="topbar-right"></div>
+            </div>
+
+            <div id="viewer-wrap">
+                <div id="viewer-flow" class="viewer-panel active">
+                    <h2 class="status">正在解析文本...</h2>
+                </div>
+                <div id="viewer-rendition" class="viewer-panel"></div>
+            </div>
+
+            <div class="controls">
+                <button id="prevBtn" class="nav-btn" disabled>上一章</button>
+                <span id="page-info">第 0 章</span>
+                <button id="nextBtn" class="nav-btn" disabled>下一章</button>
+            </div>
+        </main>
     </div>
 
     <script>
@@ -273,6 +496,10 @@
         const pageInfo = document.getElementById('page-info');
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
+        const menuBtn = document.getElementById('menuBtn');
+        const backBtn = document.getElementById('backBtn');
+        const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
 
         let currentSectionIndex = 0;
         let currentHref = '';
@@ -283,9 +510,20 @@
             return String(href || '').split('#')[0];
         }
 
+        function isMobileLayout() {
+            return window.matchMedia('(max-width: 820px)').matches;
+        }
+
+        function openSidebar() {
+            document.body.classList.add('sidebar-open');
+        }
+
+        function closeSidebar() {
+            document.body.classList.remove('sidebar-open');
+        }
+
         function modeLabel(mode) {
-            if (mode === 'rendition') return '版式模式';
-            return '流式模式';
+            return mode === 'rendition' ? '版式模式' : '流式模式';
         }
 
         function updatePageInfo() {
@@ -349,7 +587,6 @@
             setMode('flow');
 
             await section.load(book.load.bind(book));
-
             const markup = await section.render();
             const parsed = new DOMParser().parseFromString(markup, 'text/html');
 
@@ -396,19 +633,19 @@
 
                 if (preferredMode === 'rendition') {
                     await renderRendition(displayHref, cleanHref, section);
-                    return;
+                } else if (preferredMode === 'flow') {
+                    await renderFlow(displayHref, cleanHref, section);
+                } else {
+                    try {
+                        await renderFlow(displayHref, cleanHref, section);
+                    } catch (flowErr) {
+                        console.warn('Flow mode failed, falling back to rendition:', flowErr);
+                        await renderRendition(displayHref, cleanHref, section);
+                    }
                 }
 
-                if (preferredMode === 'flow') {
-                    await renderFlow(displayHref, cleanHref, section);
-                    return;
-                }
-
-                try {
-                    await renderFlow(displayHref, cleanHref, section);
-                } catch (flowErr) {
-                    console.warn('Flow mode failed, falling back to rendition:', flowErr);
-                    await renderRendition(displayHref, cleanHref, section);
+                if (isMobileLayout()) {
+                    closeSidebar();
                 }
             } catch (err) {
                 console.error('Render error:', err);
@@ -435,6 +672,30 @@
             }
         });
 
+        backBtn?.addEventListener('click', () => {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = '{{ "/books/" | relURL }}';
+            }
+        });
+
+        menuBtn?.addEventListener('click', openSidebar);
+        closeSidebarBtn?.addEventListener('click', closeSidebar);
+        sidebarOverlay?.addEventListener('click', closeSidebar);
+
+        window.addEventListener('resize', () => {
+            if (!isMobileLayout()) {
+                closeSidebar();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeSidebar();
+            }
+        });
+
         book.ready.then(async () => {
             const toc = flattenToc(book.navigation?.toc || []);
             tocList.innerHTML = '';
@@ -447,7 +708,7 @@
                     div.className = 'toc-item';
                     div.dataset.href = normalizeHref(chapter.href);
                     div.textContent = String(chapter.label || '').trim() || 'Untitled';
-                    div.style.paddingLeft = `${6 + chapter.depth * 16}px`;
+                    div.style.paddingLeft = `${8 + chapter.depth * 16}px`;
                     div.addEventListener('click', () => renderSection(chapter.href));
                     tocList.appendChild(div);
                 });
