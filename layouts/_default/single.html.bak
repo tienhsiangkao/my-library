@@ -128,7 +128,7 @@
         }
 
         #topbar {
-            display: none;
+            display: flex;
             height: var(--topbar-height);
             min-height: var(--topbar-height);
             align-items: center;
@@ -166,6 +166,10 @@
         #backBtn:hover,
         #menuBtn:hover {
             background: rgba(255,255,255,0.06);
+        }
+
+        #menuBtn {
+            display: none;
         }
 
         #topbar-title {
@@ -341,8 +345,8 @@
         }
 
         @media (max-width: 820px) {
-            #topbar {
-                display: flex;
+            #menuBtn {
+                display: inline-block;
             }
 
             #sidebar {
@@ -510,6 +514,12 @@
             return String(href || '').split('#')[0];
         }
 
+        function getFragment(href) {
+            const raw = String(href || '');
+            const idx = raw.indexOf('#');
+            return idx >= 0 ? raw.slice(idx + 1) : '';
+        }
+
         function isMobileLayout() {
             return window.matchMedia('(max-width: 820px)').matches;
         }
@@ -569,6 +579,29 @@
             viewerFlow.innerHTML = `<p class="status error">${message}</p>`;
         }
 
+        function scrollToFragmentInFlow(fragment) {
+            if (!fragment) return;
+
+            const safeId = CSS && CSS.escape ? CSS.escape(fragment) : fragment.replace(/"/g, '\\"');
+            const target =
+                viewerFlow.querySelector(`#${safeId}`) ||
+                viewerFlow.querySelector(`[name="${fragment}"]`);
+
+            if (target) {
+                target.scrollIntoView({ behavior: 'auto', block: 'start' });
+                return;
+            }
+
+            setTimeout(() => {
+                const delayedTarget =
+                    viewerFlow.querySelector(`#${safeId}`) ||
+                    viewerFlow.querySelector(`[name="${fragment}"]`);
+                if (delayedTarget) {
+                    delayedTarget.scrollIntoView({ behavior: 'auto', block: 'start' });
+                }
+            }, 50);
+        }
+
         async function ensureRendition() {
             if (rendition) return rendition;
 
@@ -583,6 +616,29 @@
             return rendition;
         }
 
+        function absolutizeResourceUrl(url, section) {
+            try {
+                return section.resolve(url);
+            } catch (_) {
+                return url;
+            }
+        }
+
+        function rewriteFlowResources(section) {
+            viewerFlow.querySelectorAll('[src]').forEach(el => {
+                const src = el.getAttribute('src');
+                if (!src || /^(data:|blob:|https?:|\/\/)/i.test(src)) return;
+                el.setAttribute('src', absolutizeResourceUrl(src, section));
+            });
+
+            viewerFlow.querySelectorAll('[href]').forEach(el => {
+                const href = el.getAttribute('href');
+                if (!href || href.startsWith('#')) return;
+                if (/^(mailto:|tel:|javascript:|data:|blob:|https?:|\/\/)/i.test(href)) return;
+                el.setAttribute('href', href);
+            });
+        }
+
         async function renderFlow(displayHref, cleanHref, section) {
             setMode('flow');
 
@@ -595,17 +651,23 @@
             }
 
             viewerFlow.innerHTML = parsed.body.innerHTML;
+            rewriteFlowResources(section);
             viewerFlow.scrollTop = 0;
-
-            if (typeof section.unload === 'function') {
-                section.unload();
-            }
 
             currentHref = cleanHref;
             currentSectionIndex = section.index;
             markActiveToc(cleanHref);
             updateButtons();
             updatePageInfo();
+
+            const fragment = getFragment(displayHref);
+            if (fragment) {
+                scrollToFragmentInFlow(fragment);
+            }
+
+            if (typeof section.unload === 'function') {
+                section.unload();
+            }
         }
 
         async function renderRendition(displayHref, cleanHref, section) {
@@ -652,6 +714,27 @@
                 showError(`渲染失败：${err.message || err}`);
             }
         }
+
+        viewerFlow.addEventListener('click', async (event) => {
+            const link = event.target.closest('a[href]');
+            if (!link) return;
+
+            const href = link.getAttribute('href');
+            if (!href) return;
+
+            if (/^(mailto:|tel:|javascript:|data:|blob:|https?:|\/\/)/i.test(href)) {
+                return;
+            }
+
+            event.preventDefault();
+
+            if (href.startsWith('#')) {
+                scrollToFragmentInFlow(href.slice(1));
+                return;
+            }
+
+            await renderSection(href);
+        });
 
         prevBtn.addEventListener('click', async () => {
             if (currentSectionIndex > 0) {
