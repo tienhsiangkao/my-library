@@ -1,4 +1,7 @@
-﻿from __future__ import annotations
+# Responsibility:
+# Sync EPUB files in static/books with markdown pages in content/books.
+# This script must not modify layouts/ or reader/homepage templates.
+from __future__ import annotations
 
 import argparse
 import re

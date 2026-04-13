@@ -1,0 +1,31 @@
+PROJECT: Personal online library
+
+ARCHITECTURE RULES
+
+1. build_library.py is the only script used for normal book import/update/delete.
+2. build_library.py may read from static/books and write to content/books only.
+3. No script may modify anything inside layouts/ during normal library updates.
+4. layouts/_default/single.html is the reader UI and is edited manually only.
+5. layouts/books/list.html is the library homepage UI and is edited manually only.
+6. static/books/*.epub are the source book files.
+7. content/books/*.md are generated/synced book pages.
+8. epub_file is the unique identity of a book.
+9. reader_mode, cover_image, description, and tags are manual fields and must not be overwritten automatically.
+10. If a source EPUB is removed from static/books, its matching markdown page in content/books should be removed by build_library.py.
+11. build_library.py must not create duplicate book pages for the same epub_file.
+12. Any future feature must respect these boundaries instead of mixing responsibilities.
+
+WORKFLOW RULES
+
+1. To add a book: put the EPUB into static/books, then run python build_library.py
+2. To remove a book: delete the EPUB from static/books, then run python build_library.py
+3. To change reader behavior: edit layouts/_default/single.html
+4. To change library homepage appearance: edit layouts/books/list.html
+5. Do not create any new script that rewrites templates automatically.
+
+SAFETY RULES
+
+1. Before major changes, make a git commit.
+2. If something breaks after importing books, check build_library.py first.
+3. If something breaks in reader UI, check layouts/_default/single.html first.
+4. If something breaks on the library homepage, check layouts/books/list.html first.
