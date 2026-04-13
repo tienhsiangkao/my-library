@@ -1,8 +1,8 @@
 ---
-author: Robert McKee
-epub_file: Story.epub
 title: Story
+author: Robert McKee
 type: book
+epub_file: Story.epub
 reader_mode: flow
 ---
 

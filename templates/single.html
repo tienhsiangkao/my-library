@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>Pretext Engine - {{ .Title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #121212;
+            --panel: #1a1a1a;
+            --panel-2: #222;
+            --border: #333;
+            --text: #d8d8d8;
+            --muted: #9c9c9c;
+            --primary: #007aff;
+            --paper: #ffffff;
+            --paper-text: #333333;
+            --sidebar-width: 280px;
+            --topbar-height: 56px;
+            --controls-height: 60px;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "PingFang SC", "STHeiti", "Noto Sans CJK SC", sans-serif;
+        }
+
+        body {
+            overflow: hidden;
+        }
+
+        #app {
+            display: flex;
+            width: 100%;
+            height: 100dvh;
+            min-height: 100dvh;
+            background: var(--bg);
+            overflow: hidden;
+        }
+
+        #sidebar-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 40;
+        }
+
+        #sidebar {
+            width: var(--sidebar-width);
+            flex-shrink: 0;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            padding: 18px 16px 24px;
+            z-index: 50;
+        }
+
+        #sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        #sidebar h3 {
+            margin: 0;
+            color: var(--primary);
+            font-size: 18px;
+        }
+
+        #closeSidebarBtn {
+            display: none;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 24px;
+            line-height: 1;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        .toc-item {
+            cursor: pointer;
+            padding: 10px 8px;
+            border-bottom: 1px solid #2a2a2a;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.5;
+            word-break: break-word;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+        .toc-item:hover {
+            color: #fff;
+            background: var(--panel-2);
+        }
+
+        .toc-item.active {
+            color: #fff;
+            background: #2a2a2a;
+        }
+
+        #main {
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg);
+        }
+
+        #topbar {
+            height: var(--topbar-height);
+            min-height: var(--topbar-height);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 0 12px;
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        #topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        #topbar-right {
+            width: 8px;
+            flex-shrink: 0;
+        }
+
+        #backBtn,
+        #menuBtn {
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 22px;
+            line-height: 1;
+            padding: 8px 10px;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+
+        #backBtn:hover,
+        #menuBtn:hover {
+            background: rgba(255,255,255,0.06);
+        }
+
+        #menuBtn {
+            display: none;
+        }
+
+        #topbar-title {
+            flex: 1;
+            min-width: 0;
+            font-size: 15px;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text);
+        }
+
+        #viewer-wrap {
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+            padding: 16px;
+        }
+
+        .viewer-panel {
+            display: none;
+            width: min(92%, 920px);
+            height: 100%;
+            min-height: 0;
+            background: var(--paper);
+            color: var(--paper-text);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+
+        .viewer-panel.active {
+            display: block;
+        }
+
+        #viewer-flow {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 44px 48px;
+            line-height: 1.9;
+            font-size: 18px;
+        }
+
+        #viewer-flow h1,
+        #viewer-flow h2,
+        #viewer-flow h3,
+        #viewer-flow h4,
+        #viewer-flow h5,
+        #viewer-flow h6 {
+            position: static !important;
+            display: block !important;
+            line-height: 1.45 !important;
+            margin: 1.35em 0 0.8em 0 !important;
+            color: #111 !important;
+            float: none !important;
+            clear: both !important;
+            letter-spacing: normal !important;
+        }
+
+        #viewer-flow p {
+            margin: 0 0 1em 0;
+        }
+
+        #viewer-flow img,
+        #viewer-flow svg,
+        #viewer-flow video,
+        #viewer-flow canvas {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 12px auto;
+        }
+
+        #viewer-flow table {
+            max-width: 100%;
+            border-collapse: collapse;
+            display: block;
+            overflow-x: auto;
+        }
+
+        #viewer-flow pre,
+        #viewer-flow code {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        #viewer-flow a {
+            color: #0a66d1;
+        }
+
+        #viewer-rendition {
+            width: 100%;
+            height: 100%;
+            background: #fff;
+        }
+
+        #viewer-rendition iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+
+        .controls {
+            min-height: var(--controls-height);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            padding: 10px 14px;
+            background: var(--panel);
+            border-top: 1px solid #2a2a2a;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 5;
+        }
+
+        button.nav-btn {
+            padding: 10px 16px;
+            cursor: pointer;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 14px;
+            min-width: 84px;
+        }
+
+        button.nav-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        #page-info {
+            flex: 1;
+            min-width: 0;
+            text-align: center;
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.4;
+            padding: 0 8px;
+            word-break: break-word;
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 100px;
+            color: #666;
+        }
+
+        .error {
+            color: #c62828;
+        }
+
+        @media (max-width: 1024px) {
+            #viewer-wrap {
+                padding: 12px;
+            }
+
+            .viewer-panel {
+                width: 100%;
+            }
+
+            #viewer-flow {
+                padding: 30px 26px;
+                font-size: 17px;
+            }
+        }
+
+        @media (max-width: 820px) {
+            #menuBtn {
+                display: inline-block;
+            }
+
+            #sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: min(86vw, var(--sidebar-width));
+                max-width: 86vw;
+                height: 100dvh;
+                transform: translateX(-100%);
+                transition: transform 0.22s ease;
+                box-shadow: 0 12px 36px rgba(0,0,0,0.45);
+                padding-top: 16px;
+            }
+
+            #closeSidebarBtn {
+                display: inline-block;
+            }
+
+            body.sidebar-open #sidebar {
+                transform: translateX(0);
+            }
+
+            body.sidebar-open #sidebar-overlay {
+                opacity: 1;
+                pointer-events: auto;
+            }
+
+            #viewer-wrap {
+                padding: 0;
+            }
+
+            .viewer-panel {
+                width: 100%;
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            #viewer-flow {
+                padding: 18px 14px 24px;
+                font-size: 15.5px;
+                line-height: 1.8;
+            }
+
+            .controls {
+                gap: 8px;
+                padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+            }
+
+            button.nav-btn {
+                min-width: 64px;
+                padding: 9px 12px;
+                font-size: 13px;
+            }
+
+            #page-info {
+                font-size: 12px;
+            }
+
+            .toc-item {
+                font-size: 13px;
+                padding-top: 11px;
+                padding-bottom: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar-overlay"></div>
+
+    <div id="app">
+        <aside id="sidebar" aria-label="Table of contents">
+            <div id="sidebar-header">
+                <h3>目录</h3>
+                <button id="closeSidebarBtn" type="button" aria-label="Close menu">×</button>
+            </div>
+            <div id="toc-list">正在提取目录...</div>
+        </aside>
+
+        <main id="main">
+            <div id="topbar">
+                <div id="topbar-left">
+                    <button id="backBtn" type="button" aria-label="Go back">←</button>
+                    <button id="menuBtn" type="button" aria-label="Open menu">☰</button>
+                </div>
+                <div id="topbar-title">{{ .Title }}</div>
+                <div id="topbar-right"></div>
+            </div>
+
+            <div id="viewer-wrap">
+                <div id="viewer-flow" class="viewer-panel active">
+                    <h2 class="status">正在解析文本...</h2>
+                </div>
+                <div id="viewer-rendition" class="viewer-panel"></div>
+            </div>
+
+            <div class="controls">
+                <button id="prevBtn" class="nav-btn" disabled>上一章</button>
+                <span id="page-info">第 0 章</span>
+                <button id="nextBtn" class="nav-btn" disabled>下一章</button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const preferredMode = '{{ .Params.reader_mode | default "auto" }}'.toLowerCase();
+        const bookUrl = '{{ printf "books/%s" .Params.epub_file | relURL }}';
+        const libraryIndexUrl = '{{ "/books/" | relURL }}';
+        const book = ePub(bookUrl);
+
+        const viewerFlow = document.getElementById('viewer-flow');
+        const viewerRendition = document.getElementById('viewer-rendition');
+        const tocList = document.getElementById('toc-list');
+        const pageInfo = document.getElementById('page-info');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const menuBtn = document.getElementById('menuBtn');
+        const backBtn = document.getElementById('backBtn');
+        const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+        let currentSectionIndex = 0;
+        let currentHref = '';
+        let activeMode = 'flow';
+        let rendition = null;
+
+        function normalizeHref(href) {
+            return String(href || '').split('#')[0];
+        }
+
+        function getFragment(href) {
+            const raw = String(href || '');
+            const idx = raw.indexOf('#');
+            return idx >= 0 ? raw.slice(idx + 1) : '';
+        }
+
+        function isExternalHref(href) {
+            return /^(https?:|mailto:|tel:|javascript:|data:|blob:|\/\/)/i.test(String(href || ''));
+        }
+
+        function isMobileLayout() {
+            return window.matchMedia('(max-width: 820px)').matches;
+        }
+
+        function effectiveMode() {
+            if (preferredMode === 'flow' || preferredMode === 'rendition') {
+                return preferredMode;
+            }
+            return isMobileLayout() ? 'rendition' : 'flow';
+        }
+
+        function openSidebar() {
+            document.body.classList.add('sidebar-open');
+        }
+
+        function closeSidebar() {
+            document.body.classList.remove('sidebar-open');
+        }
+
+        function modeLabel(mode) {
+            return mode === 'rendition' ? '版式模式' : '流式模式';
+        }
+
+        function updatePageInfo() {
+            pageInfo.innerText = `第 ${currentSectionIndex + 1} 章 · ${modeLabel(activeMode)}`;
+        }
+
+        function updateButtons() {
+            const total = book?.spine?.items?.length || 0;
+            prevBtn.disabled = currentSectionIndex <= 0;
+            nextBtn.disabled = currentSectionIndex >= total - 1 || total === 0;
+        }
+
+        function markActiveToc(cleanHref) {
+            document.querySelectorAll('.toc-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.href === cleanHref);
+            });
+        }
+
+        function flattenToc(items, depth = 0) {
+            const out = [];
+            (items || []).forEach(item => {
+                out.push({
+                    label: item.label || 'Untitled',
+                    href: item.href || '',
+                    depth
+                });
+                if (item.subitems && item.subitems.length) {
+                    out.push(...flattenToc(item.subitems, depth + 1));
+                }
+            });
+            return out;
+        }
+
+        function setMode(mode) {
+            activeMode = mode;
+            viewerFlow.classList.toggle('active', mode === 'flow');
+            viewerRendition.classList.toggle('active', mode === 'rendition');
+            updatePageInfo();
+        }
+
+        function showError(message) {
+            setMode('flow');
+            viewerFlow.innerHTML = `<p class="status error">${message}</p>`;
+        }
+
+        function resolveInternalHref(rawHref, baseHref) {
+            const href = String(rawHref || '').trim();
+            const base = String(baseHref || '').trim();
+
+            if (!href) return null;
+            if (isExternalHref(href)) return null;
+
+            if (href.startsWith('#')) {
+                const frag = href.slice(1);
+                return {
+                    displayHref: base ? `${base}#${frag}` : href,
+                    cleanHref: base,
+                    fragment: frag
+                };
+            }
+
+            const baseDir = base && base.includes('/') ? base.slice(0, base.lastIndexOf('/') + 1) : '';
+            const url = new URL(href, `https://epub.local/${baseDir}`);
+            const cleanHref = url.pathname.replace(/^\//, '');
+            const fragment = url.hash.replace(/^#/, '');
+
+            return {
+                displayHref: fragment ? `${cleanHref}#${fragment}` : cleanHref,
+                cleanHref,
+                fragment
+            };
+        }
+
+        function scrollToFragmentInFlow(fragment) {
+            if (!fragment) return;
+
+            let target = null;
+
+            try {
+                const escaped = window.CSS && CSS.escape ? CSS.escape(fragment) : fragment;
+                target = viewerFlow.querySelector(`#${escaped}`);
+            } catch (_) {}
+
+            if (!target) {
+                target = viewerFlow.querySelector(`[name="${fragment.replace(/"/g, '\\"')}"]`);
+            }
+
+            if (target) {
+                target.scrollIntoView({ behavior: 'auto', block: 'start' });
+            }
+        }
+
+        function rewriteFlowResources(section) {
+            viewerFlow.querySelectorAll('[src]').forEach(el => {
+                const src = el.getAttribute('src');
+                if (!src || isExternalHref(src)) return;
+                try {
+                    el.setAttribute('src', section.resolve(src));
+                } catch (_) {}
+            });
+
+            viewerFlow.querySelectorAll('[poster]').forEach(el => {
+                const poster = el.getAttribute('poster');
+                if (!poster || isExternalHref(poster)) return;
+                try {
+                    el.setAttribute('poster', section.resolve(poster));
+                } catch (_) {}
+            });
+        }
+
+        async function ensureRendition() {
+            if (rendition) return rendition;
+
+            rendition = book.renderTo('viewer-rendition', {
+                width: '100%',
+                height: '100%',
+                spread: 'none',
+                manager: 'continuous',
+                flow: 'scrolled-doc',
+                allowScriptedContent: true
+            });
+
+            rendition.on('relocated', (location) => {
+                const href = location?.start?.href ? normalizeHref(location.start.href) : currentHref;
+                const section = href ? book.spine.get(href) : null;
+                if (section) {
+                    currentHref = href;
+                    currentSectionIndex = section.index;
+                    markActiveToc(href);
+                    updateButtons();
+                    updatePageInfo();
+                }
+            });
+
+            return rendition;
+        }
+
+        async function renderFlow(displayHref, cleanHref, section) {
+            setMode('flow');
+
+            await section.load(book.load.bind(book));
+            const markup = await section.render();
+            const parsed = new DOMParser().parseFromString(markup, 'text/html');
+
+            if (!parsed || !parsed.body) {
+                throw new Error('Failed to parse rendered section.');
+            }
+
+            viewerFlow.innerHTML = parsed.body.innerHTML;
+            rewriteFlowResources(section);
+            viewerFlow.scrollTop = 0;
+
+            currentHref = cleanHref;
+            currentSectionIndex = section.index;
+            markActiveToc(cleanHref);
+            updateButtons();
+            updatePageInfo();
+
+            const fragment = getFragment(displayHref);
+            if (fragment) {
+                scrollToFragmentInFlow(fragment);
+            }
+        }
+
+        async function renderRendition(displayHref, cleanHref, section) {
+            setMode('rendition');
+            const r = await ensureRendition();
+
+            currentHref = cleanHref;
+            currentSectionIndex = section.index;
+            markActiveToc(cleanHref);
+            updateButtons();
+            updatePageInfo();
+
+            await r.display(displayHref || cleanHref);
+        }
+
+        async function renderSection(href) {
+            try {
+                const displayHref = String(href || '');
+                const cleanHref = normalizeHref(displayHref);
+                const section = book.spine.get(cleanHref);
+
+                if (!section) {
+                    throw new Error(`Section not found: ${cleanHref}`);
+                }
+
+                const mode = effectiveMode();
+
+                if (mode === 'rendition') {
+                    await renderRendition(displayHref, cleanHref, section);
+                } else {
+                    await renderFlow(displayHref, cleanHref, section);
+                }
+
+                if (isMobileLayout()) {
+                    closeSidebar();
+                }
+            } catch (err) {
+                console.error('Render error:', err);
+                showError(`渲染失败：${err.message || err}`);
+            }
+        }
+
+        viewerFlow.addEventListener('click', async (event) => {
+            const link = event.target.closest('a[href]');
+            if (!link) return;
+
+            const rawHref = link.getAttribute('href');
+            if (!rawHref || isExternalHref(rawHref)) return;
+
+            event.preventDefault();
+
+            const resolved = resolveInternalHref(rawHref, currentHref);
+            if (!resolved) return;
+
+            if (resolved.cleanHref === currentHref || (!resolved.cleanHref && resolved.fragment)) {
+                scrollToFragmentInFlow(resolved.fragment);
+                return;
+            }
+
+            await renderSection(resolved.displayHref);
+        });
+
+        prevBtn.addEventListener('click', async () => {
+            if (currentSectionIndex > 0) {
+                const prev = book.spine.get(currentSectionIndex - 1);
+                if (prev) {
+                    await renderSection(prev.href);
+                }
+            }
+        });
+
+        nextBtn.addEventListener('click', async () => {
+            const total = book?.spine?.items?.length || 0;
+            if (currentSectionIndex < total - 1) {
+                const next = book.spine.get(currentSectionIndex + 1);
+                if (next) {
+                    await renderSection(next.href);
+                }
+            }
+        });
+
+        backBtn.addEventListener('click', () => {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = libraryIndexUrl;
+            }
+        });
+
+        menuBtn.addEventListener('click', openSidebar);
+        closeSidebarBtn.addEventListener('click', closeSidebar);
+        sidebarOverlay.addEventListener('click', closeSidebar);
+
+        window.addEventListener('resize', async () => {
+            if (!isMobileLayout()) {
+                closeSidebar();
+            }
+
+            if (currentHref && activeMode !== effectiveMode()) {
+                const target = getFragment(window.location.hash) ? `${currentHref}#${getFragment(window.location.hash)}` : currentHref;
+                await renderSection(target);
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeSidebar();
+            }
+        });
+
+        book.ready.then(async () => {
+            const toc = flattenToc(book.navigation?.toc || []);
+            tocList.innerHTML = '';
+
+            if (!toc.length) {
+                tocList.innerHTML = '<div class="toc-item">没有可用目录</div>';
+            } else {
+                toc.forEach(chapter => {
+                    const div = document.createElement('div');
+                    div.className = 'toc-item';
+                    div.dataset.href = normalizeHref(chapter.href);
+                    div.textContent = String(chapter.label || '').trim() || 'Untitled';
+                    div.style.paddingLeft = `${8 + chapter.depth * 16}px`;
+                    div.addEventListener('click', () => renderSection(chapter.href));
+                    tocList.appendChild(div);
+                });
+            }
+
+            const first = book.spine.get(0);
+            if (!first) {
+                showError('没有找到可阅读章节。');
+                return;
+            }
+
+            await renderSection(first.href);
+        }).catch(err => {
+            console.error('Book load error:', err);
+            showError(`EPUB 加载失败：${err.message || err}`);
+        });
+    </script>
+</body>
+</html>
