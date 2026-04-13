@@ -17,7 +17,6 @@
             --text: #e8ecf3;
             --muted: #9aa4b2;
             --accent: #4f8cff;
-            --accent-2: #7aa7ff;
             --border: rgba(255,255,255,0.08);
             --shadow: 0 10px 30px rgba(0,0,0,0.28);
             --reader-max: 860px;
@@ -199,7 +198,7 @@
         .toc-item:hover,
         .toc-item.active {
             background: rgba(79,140,255,0.12);
-            border-color: rgba(122,167,255,0.22);
+            border-color: rgba(79,140,255,0.24);
         }
 
         .main {
@@ -457,7 +456,6 @@
         <div class="top-right" id="topbar-right">
             <div id="mode-switcher" aria-label="Reading mode">
                 <button class="mode-btn" data-mode="flow" type="button">Flow</button>
-                <button class="mode-btn" data-mode="auto" type="button">Auto</button>
                 <button class="mode-btn" data-mode="rendition" type="button">Rendition</button>
             </div>
         </div>
@@ -498,9 +496,13 @@
     <script>
         (() => {
             const bookUrl = `{{ (printf "books/%s" .Params.epub_file) | relURL }}`;
-            const defaultMode = '{{ .Params.reader_mode | default "auto" }}'.toLowerCase();
+            const defaultMode = '{{ .Params.reader_mode | default "flow" }}'.toLowerCase();
             const modeStorageKey = `reader-mode:${bookUrl}`;
             let preferredMode = (localStorage.getItem(modeStorageKey) || defaultMode).toLowerCase();
+
+            if (!['flow', 'rendition'].includes(preferredMode)) {
+                preferredMode = 'flow';
+            }
 
             const book = ePub(bookUrl);
 
@@ -514,42 +516,22 @@
             const drawerBackdrop = document.getElementById('drawerBackdrop');
             const modeButtons = document.querySelectorAll('.mode-btn');
 
-            const progressKey = `reader-progress:${bookUrl}`;
-
             let rendition = null;
             let spineItems = [];
             let currentHref = '';
+            let currentDisplayHref = '';
             let currentSectionIndex = 0;
-            let lastEffectiveMode = null;
-            let saveTimer = null;
-
-            function getProgress() {
-                try {
-                    return JSON.parse(localStorage.getItem(progressKey) || '{}');
-                } catch {
-                    return {};
-                }
-            }
-
-            function saveProgress(patch) {
-                const existing = getProgress();
-                const next = { ...existing, ...patch, updatedAt: Date.now() };
-                localStorage.setItem(progressKey, JSON.stringify(next));
-            }
+            let activeMode = 'flow';
+            let resizeTimer = null;
 
             function effectiveMode() {
-                if (preferredMode === 'flow' || preferredMode === 'rendition') {
-                    return preferredMode;
-                }
-                const isMobile = window.matchMedia('(max-width: 820px)').matches;
-                return isMobile ? 'flow' : 'rendition';
+                return preferredMode === 'rendition' ? 'rendition' : 'flow';
             }
 
-            function setMode() {
-                const mode = effectiveMode();
+            function setMode(mode) {
+                activeMode = mode;
                 viewerFlow.style.display = mode === 'flow' ? 'block' : 'none';
                 viewerRendition.style.display = mode === 'rendition' ? 'block' : 'none';
-                lastEffectiveMode = mode;
             }
 
             function updateModeButtons() {
@@ -558,22 +540,23 @@
                 });
             }
 
-            async function switchMode(mode) {
-                const next = String(mode || 'auto').toLowerCase();
-                if (!['flow', 'auto', 'rendition'].includes(next)) return;
+            function getCurrentDisplayHref() {
+                return currentDisplayHref || currentHref || '';
+            }
 
-                const oldEffective = effectiveMode();
-                preferredMode = next;
-                localStorage.setItem(modeStorageKey, preferredMode);
-                updateModeButtons();
+            function nextFrame() {
+                return new Promise(resolve => requestAnimationFrame(resolve));
+            }
 
-                const newEffective = effectiveMode();
-                if (currentHref && oldEffective !== newEffective) {
-                    await renderSection(currentHref);
-                } else {
-                    setMode();
-                    updatePageInfo();
-                }
+            async function resizeRenditionSafe() {
+                if (!rendition || activeMode !== 'rendition') return;
+
+                await nextFrame();
+                await nextFrame();
+
+                const width = viewerRendition.clientWidth || viewerRendition.offsetWidth || 1;
+                const height = viewerRendition.clientHeight || viewerRendition.offsetHeight || 1;
+                rendition.resize(width, height);
             }
 
             function openToc() {
@@ -589,6 +572,30 @@
             });
 
             drawerBackdrop.addEventListener('click', closeToc);
+
+            function getFragment(href) {
+                if (!href || !href.includes('#')) return '';
+                return href.split('#').slice(1).join('#');
+            }
+
+            function normalizeHref(href) {
+                if (!href) return '';
+
+                let result = String(href).trim();
+
+                if (!result) return '';
+
+                if (result.includes('#')) {
+                    result = result.split('#')[0];
+                }
+
+                try {
+                    result = decodeURIComponent(result);
+                } catch {}
+
+                result = result.replace(/^\.?\//, '');
+                return result;
+            }
 
             function flattenToc(items, depth = 0) {
                 const out = [];
@@ -622,7 +629,7 @@
                     const btn = document.createElement('button');
                     btn.type = 'button';
                     btn.className = 'toc-item';
-                    btn.dataset.href = (item.href || '').split('#')[0];
+                    btn.dataset.href = normalizeHref(item.href);
                     btn.style.paddingLeft = `${12 + item.depth * 14}px`;
                     btn.textContent = item.label;
 
@@ -635,8 +642,8 @@
                 });
             }
 
-            function setActiveToc(href) {
-                const clean = (href || '').split('#')[0];
+            function markActiveToc(href) {
+                const clean = normalizeHref(href);
                 tocList.querySelectorAll('.toc-item').forEach(el => {
                     el.classList.toggle('active', el.dataset.href === clean);
                 });
@@ -644,15 +651,14 @@
 
             function updatePageInfo() {
                 const total = spineItems.length || 0;
-                const mode = effectiveMode();
                 if (!total) {
-                    pageInfo.textContent = `No chapters · ${mode}`;
+                    pageInfo.textContent = `No chapters · ${activeMode}`;
                     return;
                 }
-                pageInfo.textContent = `Chapter ${currentSectionIndex + 1} / ${total} · ${mode}`;
+                pageInfo.textContent = `Chapter ${currentSectionIndex + 1} / ${total} · ${activeMode}`;
             }
 
-            function updateNavButtons() {
+            function updateButtons() {
                 const total = spineItems.length || 0;
                 prevBtn.disabled = currentSectionIndex <= 0;
                 nextBtn.disabled = currentSectionIndex >= total - 1;
@@ -660,33 +666,54 @@
                 nextBtn.style.opacity = nextBtn.disabled ? '0.45' : '1';
             }
 
+            function showError(message) {
+                const text = String(message || 'Unknown error');
+                if (activeMode === 'rendition') {
+                    viewerRendition.innerHTML = '';
+                    viewerFlow.style.display = 'block';
+                    viewerRendition.style.display = 'none';
+                    viewerFlow.innerHTML = `<div class="status" style="padding:24px;color:#7f1d1d;">${text}</div>`;
+                } else {
+                    viewerFlow.innerHTML = `<div class="status" style="padding:24px;color:#7f1d1d;">${text}</div>`;
+                }
+            }
+
             function getSectionByHref(href) {
-                const clean = (href || '').split('#')[0];
+                const clean = normalizeHref(href);
                 try {
-                    const found = book.spine.get(clean);
-                    if (found) return found;
+                    const direct = book.spine.get(clean);
+                    if (direct) return direct;
                 } catch {}
 
-                const found = spineItems.find(item => item && item.href === clean);
+                const found = spineItems.find(item => {
+                    if (!item || !item.href) return false;
+                    return normalizeHref(item.href) === clean;
+                });
+
                 return found || spineItems[0] || null;
             }
 
-            function hrefToIndex(href) {
-                const clean = (href || '').split('#')[0];
-                const idx = spineItems.findIndex(item => item && item.href === clean);
-                return idx >= 0 ? idx : 0;
-            }
+            function scrollToFragmentInFlow(fragment) {
+                if (!fragment) return;
 
-            function resolveInternalHref(rawHref) {
-                if (!rawHref) return '';
-                if (rawHref.startsWith('#')) {
-                    const base = (currentHref || '').split('#')[0];
-                    return `${base}${rawHref}`;
+                let target = null;
+                try {
+                    const safe = CSS.escape(fragment);
+                    target =
+                        viewerFlow.querySelector(`#${safe}`) ||
+                        viewerFlow.querySelector(`[name="${safe}"]`);
+                } catch {
+                    target =
+                        viewerFlow.querySelector(`[id="${fragment}"]`) ||
+                        viewerFlow.querySelector(`[name="${fragment}"]`);
                 }
-                return rawHref;
+
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
             }
 
-            function rewriteFlowLinks() {
+            function rewriteFlowResources() {
                 viewerFlow.querySelectorAll('a[href]').forEach(a => {
                     const raw = a.getAttribute('href') || '';
                     if (!raw) return;
@@ -703,28 +730,16 @@
                     }
 
                     a.addEventListener('click', async (e) => {
-                        const href = resolveInternalHref(raw);
-
-                        if (href.startsWith('#')) return;
-
                         e.preventDefault();
-                        await renderSection(href);
+
+                        if (raw.startsWith('#')) {
+                            scrollToFragmentInFlow(raw.slice(1));
+                            return;
+                        }
+
+                        await renderSection(raw);
                     });
                 });
-            }
-
-            function jumpToHashInFlow(href) {
-                const hash = href.includes('#') ? href.split('#')[1] : '';
-                if (!hash) return;
-
-                const id = decodeURIComponent(hash);
-                const target =
-                    viewerFlow.querySelector(`[id="${CSS.escape(id)}"]`) ||
-                    viewerFlow.querySelector(`[name="${CSS.escape(id)}"]`);
-
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
             }
 
             async function ensureRendition() {
@@ -740,8 +755,8 @@
 
                 rendition.themes.default({
                     body: {
-                        'background': '#f8f5ef',
-                        'color': '#1f2630',
+                        background: '#f8f5ef',
+                        color: '#1f2630',
                         'line-height': '1.7'
                     },
                     'p, li': {
@@ -751,93 +766,121 @@
 
                 rendition.on('relocated', (location) => {
                     const start = location && location.start ? location.start : {};
-                    currentHref = start.href || currentHref || '';
-                    currentSectionIndex = typeof start.index === 'number' ? start.index : hrefToIndex(currentHref);
-                    setActiveToc(currentHref);
+                    if (start.href) {
+                        currentHref = normalizeHref(start.href);
+                        currentDisplayHref = start.cfi || start.href || currentHref;
+                    }
+                    if (typeof start.index === 'number') {
+                        currentSectionIndex = start.index;
+                    } else {
+                        const idx = spineItems.findIndex(item => normalizeHref(item.href) === currentHref);
+                        currentSectionIndex = idx >= 0 ? idx : 0;
+                    }
+                    markActiveToc(currentHref);
+                    updateButtons();
                     updatePageInfo();
-                    updateNavButtons();
-
-                    saveProgress({
-                        href: currentHref,
-                        sectionIndex: currentSectionIndex,
-                        renditionCfi: start.cfi || null
-                    });
                 });
 
                 return rendition;
             }
 
-            async function renderFlow(href) {
+            async function renderFlow(displayHref, cleanHref, section) {
+                setMode('flow');
+                currentDisplayHref = displayHref || cleanHref;
+
+                await section.load(book.load.bind(book));
+
+                let markup = '';
                 try {
-                    const section = getSectionByHref(href);
-                    if (!section) throw new Error('Section not found');
-
-                    await section.load(book.load.bind(book));
-
-                    const doc = section.document;
-                    if (!doc || !doc.body) {
-                        throw new Error('Section body unavailable');
+                    markup = await section.render();
+                } catch {
+                    if (section.document && section.document.body) {
+                        markup = section.document.body.innerHTML;
+                    } else {
+                        throw new Error('Failed to render section in flow mode.');
                     }
+                }
 
-                    viewerFlow.innerHTML = doc.body.innerHTML;
-                    rewriteFlowLinks();
+                const parsed = new DOMParser().parseFromString(markup, 'text/html');
+                if (!parsed || !parsed.body) {
+                    throw new Error('Failed to parse section HTML.');
+                }
 
-                    currentHref = href || section.href || '';
-                    currentSectionIndex = typeof section.index === 'number' ? section.index : hrefToIndex(currentHref);
-                    setActiveToc(currentHref);
-                    updatePageInfo();
-                    updateNavButtons();
+                viewerFlow.innerHTML = parsed.body.innerHTML;
+                rewriteFlowResources();
+                viewerFlow.scrollTop = 0;
 
-                    const progress = getProgress();
-                    const sameSection = progress.href && progress.href.split('#')[0] === currentHref.split('#')[0];
-                    const scrollTop = sameSection && typeof progress.flowScrollTop === 'number' ? progress.flowScrollTop : 0;
+                currentHref = cleanHref;
+                currentSectionIndex = typeof section.index === 'number' ? section.index : 0;
+                markActiveToc(cleanHref);
+                updateButtons();
+                updatePageInfo();
 
-                    requestAnimationFrame(() => {
-                        viewerFlow.scrollTop = scrollTop;
-                        jumpToHashInFlow(currentHref);
-                    });
+                const fragment = getFragment(displayHref);
+                if (fragment) {
+                    scrollToFragmentInFlow(fragment);
+                }
 
-                    saveProgress({
-                        href: currentHref,
-                        sectionIndex: currentSectionIndex,
-                        flowScrollTop: scrollTop
-                    });
-                } catch (err) {
-                    console.error('Flow render error:', err);
-                    viewerFlow.innerHTML = `
-                        <div class="status" style="display:block;padding:24px;color:#7f1d1d;">
-                            <p><strong>This chapter failed in flow mode.</strong></p>
-                            <p>Try switching to <code>Rendition</code> for this book.</p>
-                        </div>
-                    `;
+                if (typeof section.unload === 'function') {
+                    section.unload();
                 }
             }
 
-            async function renderRendition(target) {
+            async function renderRendition(displayHref, cleanHref, section) {
+                setMode('rendition');
+                currentDisplayHref = displayHref || cleanHref;
+
+                const r = await ensureRendition();
+
+                currentHref = cleanHref;
+                currentSectionIndex = typeof section.index === 'number' ? section.index : 0;
+                markActiveToc(cleanHref);
+                updateButtons();
+                updatePageInfo();
+
+                await resizeRenditionSafe();
+                await r.display(currentDisplayHref);
+                await resizeRenditionSafe();
+            }
+
+            async function renderSection(href, forcedMode = null) {
+                const displayHref = String(href || '');
+                const cleanHref = normalizeHref(displayHref);
+                const section = getSectionByHref(cleanHref);
+
+                if (!section) {
+                    showError(`Render failed: section not found: ${cleanHref}`);
+                    return;
+                }
+
+                const primaryMode = forcedMode || effectiveMode();
+                const backupMode = primaryMode === 'rendition' ? 'flow' : 'rendition';
+
                 try {
-                    const r = await ensureRendition();
-                    const progress = getProgress();
-                    const finalTarget = target || progress.renditionCfi || progress.href || undefined;
-                    await r.display(finalTarget);
-                } catch (err) {
-                    console.error('Rendition render error:', err);
-                }
-            }
+                    if (primaryMode === 'rendition') {
+                        await renderRendition(displayHref, cleanHref, section);
+                    } else {
+                        await renderFlow(displayHref, cleanHref, section);
+                    }
+                } catch (err1) {
+                    console.warn(`Primary render failed in ${primaryMode}, trying ${backupMode}`, err1);
 
-            async function renderSection(target) {
-                setMode();
-                const mode = effectiveMode();
-
-                if (mode === 'flow') {
-                    await renderFlow(target || currentHref || (spineItems[0] && spineItems[0].href) || '');
-                } else {
-                    await renderRendition(target || currentHref || (spineItems[0] && spineItems[0].href) || undefined);
+                    try {
+                        if (backupMode === 'rendition') {
+                            await renderRendition(displayHref, cleanHref, section);
+                        } else {
+                            await renderFlow(displayHref, cleanHref, section);
+                        }
+                    } catch (err2) {
+                        console.error('Render error:', err1, err2);
+                        showError(`This chapter failed in both modes: ${err2.message || err2}`);
+                    }
                 }
             }
 
             prevBtn.addEventListener('click', async () => {
-                if (effectiveMode() === 'rendition') {
-                    if (rendition) await rendition.prev();
+                if (activeMode === 'rendition' && rendition) {
+                    await rendition.prev();
                     return;
                 }
 
@@ -848,8 +891,8 @@
             });
 
             nextBtn.addEventListener('click', async () => {
-                if (effectiveMode() === 'rendition') {
-                    if (rendition) await rendition.next();
+                if (activeMode === 'rendition' && rendition) {
+                    await rendition.next();
                     return;
                 }
 
@@ -859,33 +902,37 @@
                 }
             });
 
-            viewerFlow.addEventListener('scroll', () => {
-                clearTimeout(saveTimer);
-                saveTimer = setTimeout(() => {
-                    saveProgress({
-                        href: currentHref,
-                        sectionIndex: currentSectionIndex,
-                        flowScrollTop: viewerFlow.scrollTop
-                    });
-                }, 200);
-            });
-
             modeButtons.forEach(btn => {
                 btn.addEventListener('click', async () => {
-                    await switchMode(btn.dataset.mode);
+                    preferredMode = btn.dataset.mode;
+                    localStorage.setItem(modeStorageKey, preferredMode);
+                    updateModeButtons();
+
+                    const target = getCurrentDisplayHref() || (spineItems[0] && spineItems[0].href) || '';
+                    await renderSection(target, preferredMode);
                 });
             });
 
-            let resizeTimer = null;
             window.addEventListener('resize', () => {
                 clearTimeout(resizeTimer);
                 resizeTimer = setTimeout(async () => {
-                    const now = effectiveMode();
-                    if (preferredMode === 'auto' && lastEffectiveMode && now !== lastEffectiveMode) {
-                        await renderSection(currentHref || (spineItems[0] && spineItems[0].href) || '');
-                    } else {
-                        setMode();
-                        updatePageInfo();
+                    if (!document.body.classList.contains('toc-open')) return;
+                    if (window.innerWidth > 900) {
+                        closeToc();
+                    }
+                }, 120);
+            });
+
+            window.addEventListener('resize', async () => {
+                if (activeMode === 'rendition') {
+                    await resizeRenditionSafe();
+                }
+            });
+
+            window.addEventListener('orientationchange', async () => {
+                setTimeout(async () => {
+                    if (activeMode === 'rendition') {
+                        await resizeRenditionSafe();
                     }
                 }, 180);
             });
@@ -894,21 +941,13 @@
                 spineItems = book.spine && book.spine.items ? book.spine.items : [];
                 buildToc(book.navigation && book.navigation.toc ? book.navigation.toc : []);
                 updateModeButtons();
-                setMode();
 
-                const progress = getProgress();
-                const initialTarget = progress.href || (spineItems[0] && spineItems[0].href) || '';
-
-                await renderSection(initialTarget);
+                const initialTarget = (spineItems[0] && spineItems[0].href) || '';
+                await renderSection(initialTarget, effectiveMode());
             }).catch(err => {
                 console.error('Book init error:', err);
-                viewerFlow.style.display = 'block';
-                viewerRendition.style.display = 'none';
-                viewerFlow.innerHTML = `
-                    <div class="status" style="display:block;padding:24px;color:#7f1d1d;">
-                        <p><strong>Failed to open this book.</strong></p>
-                    </div>
-                `;
+                setMode('flow');
+                showError('Failed to open this book.');
             });
         })();
     </script>
