@@ -34,7 +34,7 @@ def read_epub_metadata(epub_path: Path) -> dict[str, str]:
 
         return {"title": title, "author": author}
     except Exception as exc:
-        print(f"⚠️  Metadata read failed for {epub_path.name}: {exc}")
+        print(f"⚠️ Metadata read failed for {epub_path.name}: {exc}")
         return {"title": epub_path.stem, "author": "Unknown Author"}
 
 
@@ -93,25 +93,69 @@ def ensure_books_index() -> None:
     print(f"✅ Created {INDEX_FILE}")
 
 
-def build_book_page(epub_path: Path, overwrite_metadata: bool = False) -> None:
+def collect_existing_book_pages() -> tuple[dict[str, Path], dict[Path, dict[str, Any]]]:
+    by_epub_file: dict[str, Path] = {}
+    by_path_frontmatter: dict[Path, dict[str, Any]] = {}
+
+    for md_path in CONTENT_DIR.glob("*.md"):
+        if md_path.name == "_index.md":
+            continue
+
+        frontmatter, _ = load_front_matter(md_path)
+        by_path_frontmatter[md_path] = frontmatter
+
+        epub_file = frontmatter.get("epub_file")
+        if isinstance(epub_file, str) and epub_file.strip():
+            if epub_file not in by_epub_file:
+                by_epub_file[epub_file] = md_path
+            else:
+                print(f"⚠️ Duplicate epub_file detected in existing pages: {epub_file}")
+                print(f"   Keeping first: {by_epub_file[epub_file].name}")
+                print(f"   Ignoring later: {md_path.name}")
+
+    return by_epub_file, by_path_frontmatter
+
+
+def choose_md_path(epub_path: Path, existing_by_epub: dict[str, Path]) -> Path:
+    if epub_path.name in existing_by_epub:
+        return existing_by_epub[epub_path.name]
+
+    base_slug = slugify_filename(epub_path.name)
+    candidate = CONTENT_DIR / f"{base_slug}.md"
+    counter = 1
+
+    while candidate.exists():
+        frontmatter, _ = load_front_matter(candidate)
+        existing_epub = frontmatter.get("epub_file")
+        if existing_epub == epub_path.name:
+            return candidate
+        candidate = CONTENT_DIR / f"{base_slug}-{counter}.md"
+        counter += 1
+
+    return candidate
+
+
+def sync_book_page(
+    epub_path: Path,
+    existing_by_epub: dict[str, Path],
+    overwrite_metadata: bool = False,
+) -> Path:
     metadata = read_epub_metadata(epub_path)
-    slug = slugify_filename(epub_path.name)
-    md_path = CONTENT_DIR / f"{slug}.md"
+    md_path = choose_md_path(epub_path, existing_by_epub)
 
     old_frontmatter, old_body = load_front_matter(md_path)
-
     frontmatter: dict[str, Any] = dict(old_frontmatter)
 
-    if overwrite_metadata or "title" not in frontmatter or not frontmatter["title"]:
+    if overwrite_metadata or not frontmatter.get("title"):
         frontmatter["title"] = metadata["title"]
 
-    if overwrite_metadata or "author" not in frontmatter or not frontmatter["author"]:
+    if overwrite_metadata or not frontmatter.get("author"):
         frontmatter["author"] = metadata["author"]
 
     frontmatter["type"] = "book"
     frontmatter["epub_file"] = epub_path.name
 
-    if "reader_mode" not in frontmatter or not frontmatter["reader_mode"]:
+    if not frontmatter.get("reader_mode"):
         frontmatter["reader_mode"] = guess_reader_mode(metadata["title"], epub_path.name)
 
     if not old_body.strip():
@@ -125,18 +169,37 @@ def build_book_page(epub_path: Path, overwrite_metadata: bool = False) -> None:
         old_text = md_path.read_text(encoding="utf-8")
         if old_text == new_text:
             print(f"• Unchanged: {md_path.name}")
-            return
+            existing_by_epub[epub_path.name] = md_path
+            return md_path
 
     md_path.write_text(new_text, encoding="utf-8")
+    existing_by_epub[epub_path.name] = md_path
     print(f"✅ Synced: {md_path.name}")
+    return md_path
+
+
+def prune_stale_markdown(existing_by_epub: dict[str, Path], current_epub_names: set[str]) -> None:
+    removed = 0
+
+    for epub_file, md_path in list(existing_by_epub.items()):
+        if epub_file not in current_epub_names:
+            if md_path.exists():
+                md_path.unlink()
+                print(f"🗑 Deleted stale page: {md_path.name} (missing source {epub_file})")
+                removed += 1
+
+    if removed == 0:
+        print("• No stale markdown pages to delete.")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build Hugo markdown pages for EPUB books.")
+    parser = argparse.ArgumentParser(
+        description="Sync Hugo markdown pages with EPUB files in static/books."
+    )
     parser.add_argument(
         "--overwrite-metadata",
         action="store_true",
-        help="Overwrite existing title/author from EPUB metadata.",
+        help="Overwrite existing title/author with EPUB metadata.",
     )
     args = parser.parse_args()
 
@@ -146,13 +209,24 @@ def main() -> None:
     ensure_books_index()
 
     epub_files = sorted(BOOKS_DIR.glob("*.epub"))
+    current_epub_names = {p.name for p in epub_files}
+
+    existing_by_epub, _ = collect_existing_book_pages()
+
     if not epub_files:
-        print("No EPUB files found.")
+        print("No EPUB files found. Pruning stale markdown...")
+        prune_stale_markdown(existing_by_epub, current_epub_names)
+        print("🎉 Library sync complete.")
         return
 
     for epub_path in epub_files:
-        build_book_page(epub_path, overwrite_metadata=args.overwrite_metadata)
+        sync_book_page(
+            epub_path,
+            existing_by_epub=existing_by_epub,
+            overwrite_metadata=args.overwrite_metadata,
+        )
 
+    prune_stale_markdown(existing_by_epub, current_epub_names)
     print("🎉 Library sync complete.")
 
 
