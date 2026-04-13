@@ -1,0 +1,48 @@
+
+<!DOCTYPE html>
+<html>
+<head><script src="/my-library/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=my-library/livereload" data-no-instant defer></script>
+    <meta charset="utf-8">
+    <title>The Mathematics of Poker - ???</title>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #f4f4f4; }
+        #viewer { width: 100%; height: 90vh; background: white; }
+        .controls { height: 10vh; display: flex; align-items: center; justify-content: center; gap: 20px; background: #fff; border-top: 1px solid #ddd; }
+        button { padding: 10px 25px; cursor: pointer; font-size: 16px; border-radius: 5px; border: 1px solid #bbb; }
+    </style>
+</head>
+<body>
+    <div id="viewer"></div>
+    <div class="controls">
+        <button id="prev">? ???</button>
+        <span id="pos">????...</span>
+        <button id="next">??? ?</button>
+    </div>
+
+    <script>
+        
+        const bookPath = "http:\/\/localhost:1313\/my-library\/books/Chen, William _ Ankenman, Jerrod - The Mathematics of Poker (2006, Conjelco) - libgen.li.epub";
+        console.log("????????:", bookPath);
+
+        const book = ePub(bookPath);
+        const rendition = book.renderTo("viewer", {
+            width: "100%",
+            height: "100%",
+            flow: "paginated",
+            manager: "default"
+        });
+
+        const display = rendition.display();
+
+        book.ready.then(() => {
+            document.getElementById("pos").innerText = "???";
+        });
+
+        document.getElementById("prev").onclick = () => rendition.prev();
+        document.getElementById("next").onclick = () => rendition.next();
+    </script>
+</body>
+</html>
+

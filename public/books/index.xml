@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Books on My Online Library</title>
+    <link>http://localhost:1313/my-library/books/</link>
+    <description>Recent content in Books on My Online Library</description>
+    <generator>Hugo</generator>
+    <language>en-us</language>
+    <atom:link href="http://localhost:1313/my-library/books/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>The Mathematics of Poker</title>
+      <link>http://localhost:1313/my-library/books/the_mathematics_of_poker/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <guid>http://localhost:1313/my-library/books/the_mathematics_of_poker/</guid>
+      <description>&lt;p&gt;Click below to read &lt;strong&gt;The Mathematics of Poker&lt;/strong&gt; by William Chen.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>长安与河北之间：中晚唐的政治与文化 (新史学&amp;多元对话系列)</title>
+      <link>http://localhost:1313/my-library/books/%E9%95%BF%E5%AE%89%E4%B8%8E%E6%B2%B3%E5%8C%97%E4%B9%8B%E9%97%B4%E4%B8%AD%E6%99%9A%E5%94%90%E7%9A%84%E6%94%BF%E6%B2%BB%E4%B8%8E%E6%96%87%E5%8C%96/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <guid>http://localhost:1313/my-library/books/%E9%95%BF%E5%AE%89%E4%B8%8E%E6%B2%B3%E5%8C%97%E4%B9%8B%E9%97%B4%E4%B8%AD%E6%99%9A%E5%94%90%E7%9A%84%E6%94%BF%E6%B2%BB%E4%B8%8E%E6%96%87%E5%8C%96/</guid>
+      <description>&lt;p&gt;Click below to read &lt;strong&gt;长安与河北之间：中晚唐的政治与文化 (新史学&amp;amp;多元对话系列)&lt;/strong&gt; by 仇鹿鸣.&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

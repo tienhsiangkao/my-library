@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><script src="/my-library/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=my-library/livereload" data-no-instant defer></script>
+    <meta charset="utf-8">
+    <title>Pretext Engine - The Mathematics of Poker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: #121212;
+            color: #d1d1d1;
+            font-family: "PingFang SC", "STHeiti", "Noto Sans CJK SC", sans-serif;
+        }
+
+        body {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 260px;
+            background: #1a1a1a;
+            border-right: 1px solid #333;
+            overflow-y: auto;
+            padding: 20px;
+            flex-shrink: 0;
+        }
+
+        #sidebar h3 {
+            margin-top: 0;
+            color: #007aff;
+        }
+
+        #toc-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .toc-item {
+            cursor: pointer;
+            padding: 10px 6px;
+            border-bottom: 1px solid #2a2a2a;
+            color: #9a9a9a;
+            font-size: 14px;
+            line-height: 1.5;
+            word-break: break-word;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+        .toc-item:hover {
+            color: #fff;
+            background: #222;
+        }
+
+        .toc-item.active {
+            color: #fff;
+            background: #2a2a2a;
+        }
+
+        #main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            background: #121212;
+        }
+
+        #viewer-wrap {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+            padding: 20px;
+            min-height: 0;
+        }
+
+        #viewer {
+            width: min(90%, 860px);
+            height: 100%;
+            background: #fff;
+            color: #333;
+            padding: 50px;
+            overflow-y: auto;
+            border-radius: 6px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            line-height: 1.9;
+            font-size: 18px;
+        }
+
+        #viewer h1,
+        #viewer h2,
+        #viewer h3,
+        #viewer h4,
+        #viewer h5,
+        #viewer h6 {
+            position: static !important;
+            display: block !important;
+            line-height: 1.5 !important;
+            margin: 1.5em 0 0.9em 0 !important;
+            color: #111 !important;
+            letter-spacing: normal !important;
+            float: none !important;
+            clear: both !important;
+        }
+
+        #viewer p {
+            margin: 0 0 1em 0;
+        }
+
+        #viewer img,
+        #viewer svg,
+        #viewer video,
+        #viewer canvas {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 12px auto;
+        }
+
+        #viewer table {
+            max-width: 100%;
+            border-collapse: collapse;
+            display: block;
+            overflow-x: auto;
+        }
+
+        #viewer a {
+            color: #0a66d1;
+        }
+
+        #viewer pre,
+        #viewer code {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .controls {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            background: #1a1a1a;
+            border-top: 1px solid #2a2a2a;
+            flex-shrink: 0;
+            padding: 0 16px;
+        }
+
+        button {
+            padding: 10px 22px;
+            cursor: pointer;
+            background: #007aff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        button:hover {
+            filter: brightness(1.05);
+        }
+
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            filter: none;
+        }
+
+        #page-info {
+            min-width: 120px;
+            text-align: center;
+            color: #d1d1d1;
+            font-size: 14px;
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 100px;
+            color: #666;
+        }
+
+        .error {
+            color: #c62828;
+        }
+
+        @media (max-width: 900px) {
+            #sidebar {
+                width: 220px;
+            }
+
+            #viewer {
+                width: 100%;
+                padding: 28px 24px;
+                font-size: 17px;
+            }
+        }
+
+        @media (max-width: 680px) {
+            body {
+                flex-direction: column;
+            }
+
+            #sidebar {
+                width: 100%;
+                height: 180px;
+                border-right: none;
+                border-bottom: 1px solid #333;
+            }
+
+            #viewer-wrap {
+                padding: 12px;
+            }
+
+            .controls {
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h3>目 录</h3>
+        <div id="toc-list">正在提取目录...</div>
+    </div>
+
+    <div id="main">
+        <div id="viewer-wrap">
+            <div id="viewer">
+                <h2 class="status">正在解析文本...</h2>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="prevBtn" disabled>上一章</button>
+            <span id="page-info">第 0 章</span>
+            <button id="nextBtn" disabled>下一章</button>
+        </div>
+    </div>
+
+    <script>
+        const bookUrl = '\/my-library\/books\/the_mathematics_of_poker.epub';
+        const book = ePub(bookUrl);
+
+        const viewer = document.getElementById('viewer');
+        const tocList = document.getElementById('toc-list');
+        const pageInfo = document.getElementById('page-info');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+
+        let currentSectionIndex = 0;
+        let currentHref = '';
+
+        function normalizeHref(href) {
+            return String(href || '').split('#')[0];
+        }
+
+        function updateButtons() {
+            const total = book?.spine?.items?.length || 0;
+            prevBtn.disabled = currentSectionIndex <= 0;
+            nextBtn.disabled = currentSectionIndex >= total - 1 || total === 0;
+        }
+
+        function markActiveToc(cleanHref) {
+            document.querySelectorAll('.toc-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.href === cleanHref);
+            });
+        }
+
+        function flattenToc(items, depth = 0) {
+            const out = [];
+            (items || []).forEach(item => {
+                out.push({
+                    label: item.label || 'Untitled',
+                    href: item.href || '',
+                    depth
+                });
+                if (item.subitems && item.subitems.length) {
+                    out.push(...flattenToc(item.subitems, depth + 1));
+                }
+            });
+            return out;
+        }
+
+        function showError(message) {
+            viewer.innerHTML = `<p class="status error">${message}</p>`;
+        }
+
+        async function renderSection(href) {
+            try {
+                const cleanHref = normalizeHref(href);
+                const section = book.spine.get(cleanHref);
+
+                if (!section) {
+                    throw new Error(`Section not found: ${cleanHref}`);
+                }
+
+                await section.load(book.load.bind(book));
+
+                const markup = await section.render();
+                const parsed = new DOMParser().parseFromString(markup, 'text/html');
+
+                if (!parsed || !parsed.body) {
+                    throw new Error('Failed to parse rendered section.');
+                }
+
+                viewer.innerHTML = parsed.body.innerHTML;
+                viewer.scrollTop = 0;
+
+                currentSectionIndex = section.index;
+                currentHref = cleanHref;
+                pageInfo.innerText = `第 ${currentSectionIndex + 1} 章`;
+
+                markActiveToc(cleanHref);
+                updateButtons();
+
+                if (typeof section.unload === 'function') {
+                    section.unload();
+                }
+            } catch (err) {
+                console.error('Render error:', err);
+                showError(`渲染失败：${err.message || err}`);
+            }
+        }
+
+        prevBtn.addEventListener('click', () => {
+            if (currentSectionIndex > 0) {
+                const prev = book.spine.get(currentSectionIndex - 1);
+                if (prev) renderSection(prev.href);
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            const total = book?.spine?.items?.length || 0;
+            if (currentSectionIndex < total - 1) {
+                const next = book.spine.get(currentSectionIndex + 1);
+                if (next) renderSection(next.href);
+            }
+        });
+
+        book.ready.then(() => {
+            const toc = flattenToc(book.navigation?.toc || []);
+            tocList.innerHTML = '';
+
+            if (!toc.length) {
+                tocList.innerHTML = '<div class="toc-item">没有可用目录</div>';
+            } else {
+                toc.forEach(chapter => {
+                    const div = document.createElement('div');
+                    div.className = 'toc-item';
+                    div.dataset.href = normalizeHref(chapter.href);
+                    div.textContent = chapter.label.trim();
+                    div.style.paddingLeft = `${6 + chapter.depth * 16}px`;
+                    div.addEventListener('click', () => renderSection(chapter.href));
+                    tocList.appendChild(div);
+                });
+            }
+
+            const first = book.spine.get(0);
+            if (!first) {
+                showError('没有找到可阅读章节。');
+                return;
+            }
+
+            renderSection(first.href);
+        }).catch(err => {
+            console.error('Book load error:', err);
+            showError(`EPUB 加载失败：${err.message || err}`);
+        });
+    </script>
+</body>
+</html>

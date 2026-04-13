@@ -1,0 +1,116 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>Pretext Engine - {{ .Title }}</title>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+    <style>
+        body { margin: 0; background: #121212; color: #d1d1d1; font-family: "PingFang SC", "STHeiti", sans-serif; display: flex; height: 100vh; }
+        
+        #sidebar { width: 260px; background: #1a1a1a; border-right: 1px solid #333; overflow-y: auto; padding: 20px; }
+        .toc-item { cursor: pointer; padding: 10px 5px; border-bottom: 1px solid #2a2a2a; color: #888; font-size: 14px; }
+        .toc-item:hover { color: #fff; background: #222; }
+
+        #main { flex: 1; display: flex; flex-direction: column; background: #121212; position: relative; }
+        
+        /* 核心阅读容器：不再使用 iframe */
+        #viewer { 
+            flex: 1; 
+            background: #fff; 
+            margin: 20px auto; 
+            width: 90%; 
+            max-width: 800px; 
+            color: #333; 
+            padding: 50px; 
+            overflow-y: auto; 
+            border-radius: 4px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            line-height: 1.8;
+            font-size: 18px;
+        }
+
+        /* 强制修复标题挤压和重叠 */
+        #viewer h1, #viewer h2, #viewer h3, #viewer h4 { 
+            position: static !important; 
+            display: block !important; 
+            line-height: 1.5 !important; 
+            margin: 1.5em 0 1em 0 !important; 
+            color: #000 !important;
+            letter-spacing: normal !important;
+        }
+        #viewer img { max-width: 100%; height: auto; display: block; margin: 10px auto; }
+
+        .controls { height: 60px; display: flex; align-items: center; justify-content: center; gap: 30px; background: #1a1a1a; }
+        button { padding: 10px 25px; cursor: pointer; background: #007aff; color: white; border: none; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h3 style="color:#007aff">目 录</h3>
+        <div id="toc-list">正在提取...</div>
+    </div>
+
+    <div id="main">
+        <div id="viewer">
+            <h2 style="text-align:center; margin-top:100px;">正在解析文本...</h2>
+        </div>
+        <div class="controls">
+            <button id="prevBtn">上一章</button>
+            <span id="page-info">第 0 章</span>
+            <button id="nextBtn">下一章</button>
+        </div>
+    </div>
+
+    <script>
+        const book = ePub('../../books/{{ .Params.epub_file }}');
+        const viewer = document.getElementById('viewer');
+        let currentSectionIndex = 0;
+
+        book.ready.then(() => {
+            // 1. 处理目录
+            const tocList = document.getElementById('toc-list');
+            tocList.innerHTML = '';
+            book.navigation.toc.forEach(chapter => {
+                const div = document.createElement('div');
+                div.className = 'toc-item';
+                div.textContent = chapter.label.trim();
+                div.onclick = () => renderSection(chapter.href);
+                tocList.appendChild(div);
+            });
+
+            // 2. 初始渲染第一章
+            renderSection(book.spine.get(0).href);
+        });
+
+        // 核心函数：手动提取 HTML 并注入
+        async function renderSection(href) {
+            try {
+                const section = book.spine.get(href);
+                const doc = await section.load(book.load.bind(book));
+                
+                // 关键：只拿 body 的内容，直接塞进我们的 div
+                // 这样就彻底绕过了 iframe 沙箱
+                viewer.innerHTML = doc.body.innerHTML;
+                viewer.scrollTop = 0; // 回到顶部
+                
+                currentSectionIndex = section.index;
+                document.getElementById('page-info').innerText = "CHAPTER: " + (currentSectionIndex + 1);
+                
+                console.log("Section rendered successfully via Direct Injection.");
+            } catch (err) {
+                console.error("Render error:", err);
+                viewer.innerHTML = "<p style='color:red'>渲染失败，请检查控制台。</p>";
+            }
+        }
+
+        document.getElementById('prevBtn').onclick = () => {
+            if (currentSectionIndex > 0) renderSection(book.spine.get(currentSectionIndex - 1).href);
+        };
+        document.getElementById('nextBtn').onclick = () => {
+            renderSection(book.spine.get(currentSectionIndex + 1).href);
+        };
+    </script>
+</body>
+</html>
