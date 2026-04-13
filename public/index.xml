@@ -8,6 +8,20 @@
     <language>en-us</language>
     <atom:link href="http://localhost:1313/my-library/index.xml" rel="self" type="application/rss+xml" />
     <item>
+      <title>Game Theory: An Introduction</title>
+      <link>http://localhost:1313/my-library/books/game_theory_-an_introduction/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <guid>http://localhost:1313/my-library/books/game_theory_-an_introduction/</guid>
+      <description>&lt;p&gt;Click below to read &lt;strong&gt;Game Theory: An Introduction&lt;/strong&gt; by Steven Tadelis.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Story</title>
+      <link>http://localhost:1313/my-library/books/story/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <guid>http://localhost:1313/my-library/books/story/</guid>
+      <description>&lt;p&gt;Click below to read &lt;strong&gt;Story&lt;/strong&gt; by Robert McKee.&lt;/p&gt;</description>
+    </item>
+    <item>
       <title>The Mathematics of Poker</title>
       <link>http://localhost:1313/my-library/books/the_mathematics_of_poker/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>

@@ -6,7 +6,11 @@
   </url><url>
     <loc>http://localhost:1313/my-library/categories/</loc>
   </url><url>
+    <loc>http://localhost:1313/my-library/books/game_theory_-an_introduction/</loc>
+  </url><url>
     <loc>http://localhost:1313/my-library/</loc>
+  </url><url>
+    <loc>http://localhost:1313/my-library/books/story/</loc>
   </url><url>
     <loc>http://localhost:1313/my-library/tags/</loc>
   </url><url>

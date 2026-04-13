@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head>
+<head><script src="/my-library/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=my-library/livereload" data-no-instant defer></script>
     <meta charset="utf-8">
-    <title>Pretext Engine - {{ .Title }}</title>
+    <title>Pretext Engine - Game Theory: An Introduction</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -38,6 +38,12 @@
         #sidebar h3 {
             margin-top: 0;
             color: #007aff;
+        }
+
+        #toc-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
         }
 
         .toc-item {
@@ -79,34 +85,25 @@
             min-height: 0;
         }
 
-        .viewer-panel {
+        #viewer {
             width: min(90%, 860px);
             height: 100%;
             background: #fff;
             color: #333;
-            border-radius: 6px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-            overflow: hidden;
-            display: none;
-        }
-
-        .viewer-panel.active {
-            display: block;
-        }
-
-        #viewer-flow {
             padding: 50px;
             overflow-y: auto;
+            border-radius: 6px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
             line-height: 1.9;
             font-size: 18px;
         }
 
-        #viewer-flow h1,
-        #viewer-flow h2,
-        #viewer-flow h3,
-        #viewer-flow h4,
-        #viewer-flow h5,
-        #viewer-flow h6 {
+        #viewer h1,
+        #viewer h2,
+        #viewer h3,
+        #viewer h4,
+        #viewer h5,
+        #viewer h6 {
             position: static !important;
             display: block !important;
             line-height: 1.5 !important;
@@ -117,41 +114,35 @@
             clear: both !important;
         }
 
-        #viewer-flow p {
+        #viewer p {
             margin: 0 0 1em 0;
         }
 
-        #viewer-flow img,
-        #viewer-flow svg,
-        #viewer-flow video,
-        #viewer-flow canvas {
+        #viewer img,
+        #viewer svg,
+        #viewer video,
+        #viewer canvas {
             max-width: 100%;
             height: auto;
             display: block;
             margin: 12px auto;
         }
 
-        #viewer-flow table {
+        #viewer table {
             max-width: 100%;
             border-collapse: collapse;
             display: block;
             overflow-x: auto;
         }
 
-        #viewer-flow a {
+        #viewer a {
             color: #0a66d1;
         }
 
-        #viewer-flow pre,
-        #viewer-flow code {
+        #viewer pre,
+        #viewer code {
             white-space: pre-wrap;
             word-break: break-word;
-        }
-
-        #viewer-rendition {
-            width: 100%;
-            height: 100%;
-            background: #fff;
         }
 
         .controls {
@@ -188,7 +179,7 @@
         }
 
         #page-info {
-            min-width: 220px;
+            min-width: 120px;
             text-align: center;
             color: #d1d1d1;
             font-size: 14px;
@@ -209,13 +200,10 @@
                 width: 220px;
             }
 
-            #viewer-flow {
+            #viewer {
+                width: 100%;
                 padding: 28px 24px;
                 font-size: 17px;
-            }
-
-            .viewer-panel {
-                width: 100%;
             }
         }
 
@@ -249,10 +237,9 @@
 
     <div id="main">
         <div id="viewer-wrap">
-            <div id="viewer-flow" class="viewer-panel active">
+            <div id="viewer">
                 <h2 class="status">正在解析文本...</h2>
             </div>
-            <div id="viewer-rendition" class="viewer-panel"></div>
         </div>
 
         <div class="controls">
@@ -263,12 +250,10 @@
     </div>
 
     <script>
-        const preferredMode = '{{ .Params.reader_mode | default "auto" }}'.toLowerCase();
-        const bookUrl = '{{ printf "books/%s" .Params.epub_file | relURL }}';
+        const bookUrl = '\/my-library\/books\/Game_Theory_ An_Introduction.epub';
         const book = ePub(bookUrl);
 
-        const viewerFlow = document.getElementById('viewer-flow');
-        const viewerRendition = document.getElementById('viewer-rendition');
+        const viewer = document.getElementById('viewer');
         const tocList = document.getElementById('toc-list');
         const pageInfo = document.getElementById('page-info');
         const prevBtn = document.getElementById('prevBtn');
@@ -276,20 +261,9 @@
 
         let currentSectionIndex = 0;
         let currentHref = '';
-        let activeMode = 'flow';
-        let rendition = null;
 
         function normalizeHref(href) {
             return String(href || '').split('#')[0];
-        }
-
-        function modeLabel(mode) {
-            if (mode === 'rendition') return '版式模式';
-            return '流式模式';
-        }
-
-        function updatePageInfo() {
-            pageInfo.innerText = `第 ${currentSectionIndex + 1} 章 · ${modeLabel(activeMode)}`;
         }
 
         function updateButtons() {
@@ -319,96 +293,40 @@
             return out;
         }
 
-        function setMode(mode) {
-            activeMode = mode;
-            viewerFlow.classList.toggle('active', mode === 'flow');
-            viewerRendition.classList.toggle('active', mode === 'rendition');
-            updatePageInfo();
-        }
-
         function showError(message) {
-            setMode('flow');
-            viewerFlow.innerHTML = `<p class="status error">${message}</p>`;
-        }
-
-        async function ensureRendition() {
-            if (rendition) return rendition;
-
-            rendition = book.renderTo('viewer-rendition', {
-                width: '100%',
-                height: '100%',
-                spread: 'none',
-                flow: 'scrolled-doc',
-                allowScriptedContent: true
-            });
-
-            return rendition;
-        }
-
-        async function renderFlow(displayHref, cleanHref, section) {
-            setMode('flow');
-
-            await section.load(book.load.bind(book));
-
-            const markup = await section.render();
-            const parsed = new DOMParser().parseFromString(markup, 'text/html');
-
-            if (!parsed || !parsed.body) {
-                throw new Error('Failed to parse rendered section.');
-            }
-
-            viewerFlow.innerHTML = parsed.body.innerHTML;
-            viewerFlow.scrollTop = 0;
-
-            if (typeof section.unload === 'function') {
-                section.unload();
-            }
-
-            currentHref = cleanHref;
-            currentSectionIndex = section.index;
-            markActiveToc(cleanHref);
-            updateButtons();
-            updatePageInfo();
-        }
-
-        async function renderRendition(displayHref, cleanHref, section) {
-            setMode('rendition');
-            const r = await ensureRendition();
-
-            currentHref = cleanHref;
-            currentSectionIndex = section.index;
-            markActiveToc(cleanHref);
-            updateButtons();
-            updatePageInfo();
-
-            await r.display(displayHref || cleanHref);
+            viewer.innerHTML = `<p class="status error">${message}</p>`;
         }
 
         async function renderSection(href) {
             try {
-                const displayHref = href || '';
-                const cleanHref = normalizeHref(displayHref);
+                const cleanHref = normalizeHref(href);
                 const section = book.spine.get(cleanHref);
 
                 if (!section) {
                     throw new Error(`Section not found: ${cleanHref}`);
                 }
 
-                if (preferredMode === 'rendition') {
-                    await renderRendition(displayHref, cleanHref, section);
-                    return;
+                await section.load(book.load.bind(book));
+
+                const markup = await section.render();
+                const parsed = new DOMParser().parseFromString(markup, 'text/html');
+
+                if (!parsed || !parsed.body) {
+                    throw new Error('Failed to parse rendered section.');
                 }
 
-                if (preferredMode === 'flow') {
-                    await renderFlow(displayHref, cleanHref, section);
-                    return;
-                }
+                viewer.innerHTML = parsed.body.innerHTML;
+                viewer.scrollTop = 0;
 
-                try {
-                    await renderFlow(displayHref, cleanHref, section);
-                } catch (flowErr) {
-                    console.warn('Flow mode failed, falling back to rendition:', flowErr);
-                    await renderRendition(displayHref, cleanHref, section);
+                currentSectionIndex = section.index;
+                currentHref = cleanHref;
+                pageInfo.innerText = `第 ${currentSectionIndex + 1} 章`;
+
+                markActiveToc(cleanHref);
+                updateButtons();
+
+                if (typeof section.unload === 'function') {
+                    section.unload();
                 }
             } catch (err) {
                 console.error('Render error:', err);
@@ -416,26 +334,22 @@
             }
         }
 
-        prevBtn.addEventListener('click', async () => {
+        prevBtn.addEventListener('click', () => {
             if (currentSectionIndex > 0) {
                 const prev = book.spine.get(currentSectionIndex - 1);
-                if (prev) {
-                    await renderSection(prev.href);
-                }
+                if (prev) renderSection(prev.href);
             }
         });
 
-        nextBtn.addEventListener('click', async () => {
+        nextBtn.addEventListener('click', () => {
             const total = book?.spine?.items?.length || 0;
             if (currentSectionIndex < total - 1) {
                 const next = book.spine.get(currentSectionIndex + 1);
-                if (next) {
-                    await renderSection(next.href);
-                }
+                if (next) renderSection(next.href);
             }
         });
 
-        book.ready.then(async () => {
+        book.ready.then(() => {
             const toc = flattenToc(book.navigation?.toc || []);
             tocList.innerHTML = '';
 
@@ -446,7 +360,7 @@
                     const div = document.createElement('div');
                     div.className = 'toc-item';
                     div.dataset.href = normalizeHref(chapter.href);
-                    div.textContent = String(chapter.label || '').trim() || 'Untitled';
+                    div.textContent = chapter.label.trim();
                     div.style.paddingLeft = `${6 + chapter.depth * 16}px`;
                     div.addEventListener('click', () => renderSection(chapter.href));
                     tocList.appendChild(div);
@@ -459,7 +373,7 @@
                 return;
             }
 
-            await renderSection(first.href);
+            renderSection(first.href);
         }).catch(err => {
             console.error('Book load error:', err);
             showError(`EPUB 加载失败：${err.message || err}`);
