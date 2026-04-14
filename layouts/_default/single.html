@@ -281,9 +281,10 @@
         }
 
         #viewer-rendition {
-            overflow: hidden;
             width: 100%;
             height: 100%;
+            overflow: hidden;
+            position: relative;
         }
 
         .status {
@@ -822,6 +823,63 @@
             return spineItems[index] || null;
         }
 
+        function spineIndexFromLocation(loc) {
+            const href = normalizeHref(loc && loc.start ? loc.start.href : "");
+            if (!href) return null;
+            const section = getSectionByHref(href);
+            return section && typeof section.index === "number" ? section.index : null;
+        }
+
+        function waitForNextRelocation(timeout = 700) {
+            return new Promise((resolve) => {
+                if (!rendition) {
+                    resolve(null);
+                    return;
+                }
+
+                let done = false;
+
+                const finish = () => {
+                    if (done) return;
+                    done = true;
+                    rendition.off("relocated", onRelocated);
+                    try {
+                        resolve(rendition.currentLocation ? rendition.currentLocation() : null);
+                    } catch {
+                        resolve(null);
+                    }
+                };
+
+                const onRelocated = () => finish();
+
+                rendition.on("relocated", onRelocated);
+                setTimeout(finish, timeout);
+            });
+        }
+
+        function stabilizeRenditionLayout() {
+            if (!rendition || !viewerRendition) return;
+
+            const rect = viewerRendition.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+
+            try {
+                rendition.spread("none");
+                rendition.resize(rect.width, rect.height);
+            } catch {}
+
+            setTimeout(() => {
+                if (!rendition || !viewerRendition) return;
+                const rect2 = viewerRendition.getBoundingClientRect();
+                if (!rect2.width || !rect2.height) return;
+
+                try {
+                    rendition.spread("none");
+                    rendition.resize(rect2.width, rect2.height);
+                } catch {}
+            }, 120);
+        }
+
         function isFlowAtTop() {
             return viewerFlow.scrollTop <= 6;
         }
@@ -1050,6 +1108,67 @@
             });
         }
 
+        async function safePaginatedStep(direction) {
+            if (!rendition) return;
+
+            const before = rendition.currentLocation ? rendition.currentLocation() : null;
+            const beforeIndex = spineIndexFromLocation(before);
+            const beforeTarget =
+                (before && before.start && (before.start.cfi || before.start.href)) ||
+                currentDisplayHref ||
+                currentHref ||
+                "";
+
+            try {
+                if (direction === "next") {
+                    await rendition.next();
+                } else {
+                    await rendition.prev();
+                }
+            } catch {}
+
+            const after = await waitForNextRelocation(700);
+            const afterIndex = spineIndexFromLocation(after);
+
+            const jumpedBackward =
+                direction === "next" &&
+                beforeIndex !== null &&
+                afterIndex !== null &&
+                afterIndex < beforeIndex;
+
+            const jumpedForward =
+                direction === "prev" &&
+                beforeIndex !== null &&
+                afterIndex !== null &&
+                afterIndex > beforeIndex;
+
+            const sameLocation =
+                before &&
+                after &&
+                before.start &&
+                after.start &&
+                ((before.start.cfi && after.start.cfi && before.start.cfi === after.start.cfi) ||
+                 (before.start.href && after.start.href && before.start.href === after.start.href));
+
+            if (jumpedBackward || jumpedForward) {
+                console.warn("Paginated bounce detected. Falling back to flow mode.");
+                showError("Paginated mode was unstable for this page. Switched to flow mode.");
+                await renderSection(beforeTarget, "flow");
+                return;
+            }
+
+            if (sameLocation) {
+                const fallbackSection =
+                    direction === "next"
+                        ? getSectionByIndex(currentSectionIndex + 1)
+                        : getSectionByIndex(currentSectionIndex - 1);
+
+                if (fallbackSection) {
+                    await renderSection(fallbackSection.href, "flow");
+                }
+            }
+        }
+
         async function withNavLock(fn) {
             if (navBusy) return;
             navBusy = true;
@@ -1068,10 +1187,11 @@
             rendition = book.renderTo("viewer-rendition", {
                 width: "100%",
                 height: "100%",
-                spread: isMobileLike() ? "none" : "auto",
+                spread: "none",
+                minSpreadWidth: 99999,
                 manager: "default",
                 flow: "paginated",
-                allowScriptedContent: true
+                allowScriptedContent: false
             });
 
             rendition.themes.default({
@@ -1115,6 +1235,10 @@
                     onNext: async () => { await nextAction(); },
                     onCenter: async () => { toggleChrome(); }
                 });
+
+                setTimeout(() => {
+                    stabilizeRenditionLayout();
+                }, 40);
             });
 
             rendition.on("relocated", (location) => {
@@ -1124,12 +1248,8 @@
                     currentDisplayHref = start.cfi || start.href || currentHref;
                 }
 
-                if (typeof start.index === "number") {
-                    currentSectionIndex = start.index;
-                } else {
-                    const idx = spineItems.findIndex(item => normalizeHref(item.href) === currentHref);
-                    currentSectionIndex = idx >= 0 ? idx : 0;
-                }
+                const idx = spineIndexFromLocation(location);
+                currentSectionIndex = idx !== null ? idx : 0;
 
                 markActiveToc(currentHref);
                 updateButtons();
@@ -1138,6 +1258,7 @@
 
             rendition.on("rendered", () => {
                 clearError();
+                stabilizeRenditionLayout();
             });
 
             rendition.on("displayError", (err) => {
@@ -1146,14 +1267,6 @@
             });
 
             return rendition;
-        }
-
-        async function resizeRenditionSafe() {
-            if (!rendition) return;
-            try {
-                rendition.spread(isMobileLike() ? "none" : "auto");
-                rendition.resize();
-            } catch {}
         }
 
         async function renderFlow(displayHref, cleanHref, section) {
@@ -1212,9 +1325,9 @@
             updateButtons();
             updatePageInfo();
 
-            await resizeRenditionSafe();
             await r.display(currentDisplayHref || cleanHref);
-            await resizeRenditionSafe();
+            stabilizeRenditionLayout();
+            setTimeout(stabilizeRenditionLayout, 160);
             clearError();
         }
 
@@ -1266,10 +1379,8 @@
                 }
 
                 if (currentMode === "rendition" && rendition) {
-                    try {
-                        await rendition.prev();
-                        return;
-                    } catch {}
+                    await safePaginatedStep("prev");
+                    return;
                 }
 
                 const prevSection = getSectionByIndex(currentSectionIndex - 1);
@@ -1290,10 +1401,8 @@
                 }
 
                 if (currentMode === "rendition" && rendition) {
-                    try {
-                        await rendition.next();
-                        return;
-                    } catch {}
+                    await safePaginatedStep("next");
+                    return;
                 }
 
                 const nextSection = getSectionByIndex(currentSectionIndex + 1);
@@ -1343,14 +1452,13 @@
                 }
             });
 
-            window.addEventListener("resize", async () => {
-                await resizeRenditionSafe();
+            window.addEventListener("resize", () => {
+                stabilizeRenditionLayout();
             });
 
-            window.addEventListener("orientationchange", async () => {
-                setTimeout(async () => {
-                    await resizeRenditionSafe();
-                }, 120);
+            window.addEventListener("orientationchange", () => {
+                setTimeout(stabilizeRenditionLayout, 80);
+                setTimeout(stabilizeRenditionLayout, 260);
             });
         }
 
