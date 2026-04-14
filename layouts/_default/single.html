@@ -119,6 +119,7 @@
             line-height: 1.45;
             word-break: break-word;
             transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+            touch-action: manipulation;
         }
 
         .toc-item:hover {
@@ -794,6 +795,7 @@
             storeSpreadMode(spreadMode);
             updateSpreadButtons();
             applyRenditionSpread();
+            updatePageInfo();
         }
 
         function effectiveMode() {
@@ -831,6 +833,49 @@
             return out;
         }
 
+        async function goToTocHref(href) {
+            if (!href) return;
+            setChromeVisible(true);
+            clearError();
+            await renderSection(href, currentMode);
+            closeSidebar();
+            setTimeout(stabilizeRenditionLayout, 80);
+            setTimeout(stabilizeRenditionLayout, 220);
+        }
+
+        function bindTocItemNavigation(btn, href) {
+            let handledAt = 0;
+
+            async function runNavigate(e) {
+                const now = Date.now();
+                if (now - handledAt < 450) {
+                    if (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    return;
+                }
+                handledAt = now;
+
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+
+                await goToTocHref(href);
+            }
+
+            btn.addEventListener("click", runNavigate);
+
+            btn.addEventListener("touchend", runNavigate, { passive: false });
+
+            btn.addEventListener("keydown", async (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    await runNavigate(e);
+                }
+            });
+        }
+
         function buildToc() {
             tocList.innerHTML = "";
 
@@ -845,10 +890,7 @@
                 btn.className = `toc-item toc-depth-${Math.min(item.depth, 3)}`;
                 btn.textContent = item.label;
                 btn.dataset.href = item.href || "";
-                btn.addEventListener("click", async () => {
-                    await renderSection(item.href);
-                    if (isMobileLike()) closeSidebar();
-                });
+                bindTocItemNavigation(btn, item.href || "");
                 tocList.appendChild(btn);
             });
 
