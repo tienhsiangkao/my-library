@@ -759,6 +759,26 @@
                 return currentDisplayHref || currentHref || (spineItems[0] && spineItems[0].href) || "";
             }
 
+            function getRenditionCurrentLocation() {
+                if (!rendition) return null;
+                try {
+                    if (typeof rendition.currentLocation === "function") {
+                        return rendition.currentLocation();
+                    }
+                } catch {}
+                try {
+                    if (typeof rendition.location === "function") {
+                        return rendition.location();
+                    }
+                } catch {}
+                try {
+                    if (rendition.location) {
+                        return rendition.location;
+                    }
+                } catch {}
+                return null;
+            }
+
             function pathCandidates(rawPath, baseHref = "") {
                 const set = new Set();
                 const baseDir = dirname(baseHref);
@@ -1094,7 +1114,7 @@
                     rendition.on("relocated", onRelocated);
 
                     setTimeout(() => {
-                        try { finish(rendition.currentLocation ? rendition.currentLocation() : null); }
+                        try { finish(getRenditionCurrentLocation()); }
                         catch { finish(null); }
                     }, timeout);
                 });
@@ -1166,16 +1186,24 @@
 
                     event.preventDefault();
                     event.stopPropagation();
-                    suppressClickUntil = Date.now() + 450;
+                    suppressClickUntil = Date.now() + 500;
+
                     await renderSection(
                         rawHref,
                         "rendition",
                         contents.section && contents.section.href ? contents.section.href : currentHref
                     );
+
                     return true;
                 };
 
                 doc.addEventListener("click", async (event) => {
+                    if (isMobileLike()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                    }
+
                     if (Date.now() < suppressClickUntil) {
                         event.preventDefault();
                         event.stopPropagation();
@@ -1188,7 +1216,7 @@
                         return;
                     }
 
-                    if (!isMobileLike() || currentMode !== "rendition") return;
+                    if (currentMode !== "rendition") return;
 
                     const width = contents.window.innerWidth || doc.documentElement.clientWidth || 1;
                     const x = typeof event.clientX === "number" ? event.clientX : width / 2;
@@ -1211,9 +1239,11 @@
                     if (touchState.moved) return;
                     if (Date.now() - touchState.startedAt > TAP_MAX_DURATION_MS) return;
 
+                    suppressClickUntil = Date.now() + 500;
+
                     const width = contents.window.innerWidth || doc.documentElement.clientWidth || 1;
                     handleRenditionTap(touchState.x / width);
-                    suppressClickUntil = Date.now() + 450;
+
                     event.preventDefault();
                     event.stopPropagation();
                 }, { passive: false, capture: true });
@@ -1257,9 +1287,13 @@
                         ? normalizeHref(location.start.href)
                         : currentHref;
 
+                    if (href) {
+                        currentDisplayHref = href;
+                    }
+
                     const section = href ? findSectionByHref(href) : null;
                     if (section) {
-                        setCurrentFromSection(section, currentDisplayHref || href);
+                        setCurrentFromSection(section, href || currentDisplayHref);
                     } else {
                         updatePageInfo();
                         updateButtons();
@@ -1290,7 +1324,7 @@
                 stabilizeRenditionLayout();
 
                 const waitPromise = waitForRelocation();
-                const beforeToken = locationToken(rendition.currentLocation ? rendition.currentLocation() : null);
+                const beforeToken = locationToken(getRenditionCurrentLocation());
 
                 await rendition.display(resolved.displayHref || resolved.cleanHref);
 
@@ -1335,7 +1369,10 @@
             async function renditionPrev() {
                 if (!rendition || currentMode !== "rendition" || !lockNav()) return;
                 try {
+                    suppressClickUntil = Date.now() + 500;
+                    const waitPromise = waitForRelocation(1000);
                     await rendition.prev();
+                    await waitPromise;
                 } finally {
                     unlockNav();
                 }
@@ -1344,7 +1381,10 @@
             async function renditionNext() {
                 if (!rendition || currentMode !== "rendition" || !lockNav()) return;
                 try {
+                    suppressClickUntil = Date.now() + 500;
+                    const waitPromise = waitForRelocation(1000);
                     await rendition.next();
+                    await waitPromise;
                 } finally {
                     unlockNav();
                 }
@@ -1413,7 +1453,7 @@
                     btn.addEventListener("touchend", async (event) => {
                         event.preventDefault();
                         event.stopPropagation();
-                        suppressClickUntil = Date.now() + 450;
+                        suppressClickUntil = Date.now() + 500;
                         await renderSection(item.href, currentMode, tocBase);
                     }, { passive: false });
 
