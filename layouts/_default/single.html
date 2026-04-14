@@ -1,4 +1,3 @@
-<!-- Reader UI only. Edit manually. No import script may overwrite this file. -->
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -11,19 +10,21 @@
 
     <style>
         :root {
+            --bg-1: #0d1015;
+            --bg-2: #11161d;
             --panel: rgba(15,17,21,0.82);
+            --paper: #f8f5ef;
+            --paper-text: #1f2630;
             --text: #e8ecf3;
             --muted: #9aa4b2;
             --accent: #4f8cff;
             --border: rgba(255,255,255,0.08);
             --shadow: 0 12px 36px rgba(0,0,0,0.32);
-            --paper: #f8f5ef;
-            --paper-text: #1f2630;
 
-            --sidebar-width: 290px;
+            --sidebar-width: 300px;
             --topbar-height: 58px;
             --controls-height: 60px;
-            --reader-width: 1640px;
+            --reader-width: 1800px;
         }
 
         * {
@@ -36,10 +37,10 @@
             padding: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(180deg, #0d1015 0%, #11161d 100%);
+            overflow: hidden;
+            background: linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
             color: var(--text);
             font-family: Inter, "PingFang SC", "SF Pro Display", "Segoe UI", sans-serif;
-            overflow: hidden;
         }
 
         a {
@@ -103,40 +104,32 @@
             font-size: 24px;
             line-height: 1;
             padding: 4px 8px;
-            border-radius: 10px;
+        }
+
+        #toc-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
         .toc-item {
-            display: block;
             width: 100%;
-            text-align: left;
-            padding: 10px 10px;
-            border: 1px solid transparent;
+            padding: 10px 12px;
             border-radius: 12px;
+            border: 1px solid transparent;
             background: transparent;
-            color: #cfd7e3;
+            color: #dbe2ee;
+            text-align: left;
             font-size: 14px;
-            line-height: 1.45;
+            line-height: 1.4;
             word-break: break-word;
-            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-            touch-action: manipulation;
         }
 
-        .toc-item:hover {
-            color: #fff;
-            background: rgba(255,255,255,0.06);
-            border-color: rgba(255,255,255,0.04);
-        }
-
+        .toc-item:hover,
         .toc-item.active {
-            color: #fff;
-            background: rgba(79,140,255,0.16);
-            border-color: rgba(79,140,255,0.22);
+            background: rgba(79,140,255,0.12);
+            border-color: rgba(79,140,255,0.24);
         }
-
-        .toc-depth-1 { padding-left: 22px; }
-        .toc-depth-2 { padding-left: 34px; }
-        .toc-depth-3 { padding-left: 46px; }
 
         #main {
             flex: 1;
@@ -145,84 +138,61 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            position: relative;
         }
 
         #topbar {
             height: var(--topbar-height);
-            min-height: var(--topbar-height);
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
             padding: 0 14px;
-            background: var(--panel);
             border-bottom: 1px solid var(--border);
+            background: var(--panel);
             backdrop-filter: blur(10px);
-            z-index: 30;
-            flex-shrink: 0;
-            transition: opacity 0.18s ease;
         }
 
         #topbar-left,
         #topbar-right {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             min-width: 0;
         }
 
-        .top-btn {
+        #topbar-title {
+            flex: 1;
+            min-width: 0;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .icon-btn,
+        .nav-btn,
+        .mode-btn,
+        .spread-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             min-height: 40px;
             padding: 0 14px;
             border-radius: 12px;
-            background: rgba(255,255,255,0.06);
             color: var(--text);
+            background: rgba(255,255,255,0.05);
             border: 1px solid var(--border);
             white-space: nowrap;
         }
 
-        .top-btn:hover {
-            background: rgba(255,255,255,0.1);
-        }
-
-        #menuBtn {
-            display: none;
-        }
-
-        #topbar-title {
-            flex: 1;
-            min-width: 0;
-            font-size: 15px;
-            font-weight: 700;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            text-align: center;
-        }
-
-        #mode-switcher,
-        #spread-switcher {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3px;
-            border-radius: 14px;
-            background: rgba(255,255,255,0.06);
-            border: 1px solid var(--border);
-        }
-
-        .mode-btn,
-        .spread-btn {
-            padding: 8px 12px;
-            border-radius: 10px;
-            background: transparent;
-            color: var(--muted);
-            font-size: 13px;
-            font-weight: 700;
+        .icon-btn:hover,
+        .nav-btn:hover,
+        .mode-btn:hover,
+        .spread-btn:hover {
+            background: rgba(255,255,255,0.08);
         }
 
         .mode-btn.active,
@@ -252,12 +222,11 @@
             border-radius: 16px;
             overflow: hidden;
             box-shadow: var(--shadow);
-            flex-direction: column;
             position: relative;
         }
 
         .viewer-panel.active {
-            display: flex;
+            display: block;
         }
 
         #viewer-flow {
@@ -269,13 +238,14 @@
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
             touch-action: pan-y;
-            padding: 44px 52px;
+            padding: 44px 56px 52px;
             line-height: 1.9;
             font-size: 19px;
         }
 
         #viewer-flow .flow-content {
             width: 100%;
+            max-width: 100%;
         }
 
         #viewer-rendition {
@@ -283,31 +253,6 @@
             height: 100%;
             overflow: hidden;
             position: relative;
-        }
-
-        #rendition-mobile-taps {
-            display: none;
-        }
-
-        .rendition-tap-zone {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            z-index: 25;
-            background: transparent;
-            pointer-events: auto;
-        }
-
-        #rendition-tap-prev {
-            left: 0;
-            width: 22vw;
-            max-width: 140px;
-        }
-
-        #rendition-tap-next {
-            right: 0;
-            width: 22vw;
-            max-width: 140px;
         }
 
         .status {
@@ -331,20 +276,18 @@
         #viewer-flow h6 {
             position: static !important;
             display: block !important;
+            float: none !important;
+            clear: both !important;
             line-height: 1.38 !important;
             margin: 1.35em 0 0.72em !important;
             color: #111827 !important;
             letter-spacing: normal !important;
-            float: none !important;
-            clear: both !important;
             overflow-wrap: break-word;
         }
 
         #viewer-flow p,
         #viewer-flow li,
-        #viewer-flow blockquote,
-        #viewer-flow td,
-        #viewer-flow th {
+        #viewer-flow blockquote {
             overflow-wrap: break-word;
         }
 
@@ -354,14 +297,10 @@
         #viewer-flow canvas,
         #viewer-flow table,
         #viewer-flow iframe,
-        #viewer-flow image {
+        #viewer-flow embed,
+        #viewer-flow object {
             max-width: 100% !important;
             height: auto !important;
-        }
-
-        #viewer-flow svg {
-            display: block;
-            margin: 0 auto;
         }
 
         #viewer-flow pre,
@@ -370,45 +309,22 @@
             word-break: break-word;
         }
 
-        #viewer-flow a {
-            color: #1d4ed8;
-            text-decoration: underline;
+        #viewer-flow table {
+            display: block;
+            overflow-x: auto;
         }
 
         .controls {
             height: var(--controls-height);
-            min-height: var(--controls-height);
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 10px;
-            padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+            gap: 12px;
+            padding: 0 18px calc(env(safe-area-inset-bottom) * 0.35);
             border-top: 1px solid var(--border);
             background: var(--panel);
             backdrop-filter: blur(10px);
-            flex-shrink: 0;
-            z-index: 30;
-            transition: opacity 0.18s ease;
-        }
-
-        .controls-left,
-        .controls-right {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .nav-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 84px;
-            min-height: 40px;
-            padding: 0 14px;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.06);
-            color: var(--text);
-            border: 1px solid var(--border);
         }
 
         #page-info {
@@ -416,85 +332,79 @@
             min-width: 0;
             text-align: center;
             color: var(--muted);
-            font-size: 14px;
-            line-height: 1.4;
-            padding: 0 8px;
-            word-break: break-word;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         #message {
             position: absolute;
-            top: calc(var(--topbar-height) + 10px);
-            left: 14px;
-            right: 14px;
+            left: 50%;
+            bottom: calc(var(--controls-height) + 14px);
+            transform: translateX(-50%);
             z-index: 80;
-            display: none;
-            padding: 12px 14px;
-            border-radius: 12px;
-            background: rgba(180, 35, 24, 0.95);
+            background: rgba(15,17,21,0.92);
             color: #fff;
-            font-size: 14px;
-            line-height: 1.45;
-            box-shadow: 0 10px 24px rgba(0,0,0,0.28);
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease;
+            max-width: min(92vw, 680px);
+            text-align: center;
+            font-size: 13px;
         }
 
-        @media (max-width: 1180px) {
-            .viewer-panel {
-                width: calc(100vw - var(--sidebar-width) - 28px);
-            }
+        #message.show {
+            opacity: 1;
+        }
 
-            #viewer-flow {
-                padding: 34px 30px;
-                font-size: 17px;
-            }
+        body.sidebar-open #sidebar-overlay {
+            opacity: 1;
+            pointer-events: auto;
         }
 
         @media (max-width: 1100px) {
-            #spread-switcher {
-                display: none;
+            :root {
+                --reader-width: 100vw;
+            }
+
+            .viewer-panel {
+                width: calc(100vw - var(--sidebar-width) - 40px);
+            }
+
+            #viewer-flow {
+                padding: 30px 28px 36px;
+                font-size: 18px;
             }
         }
 
         @media (max-width: 900px) {
-            #menuBtn {
-                display: inline-flex;
+            :root {
+                --topbar-height: 54px;
+                --controls-height: 54px;
             }
 
             #sidebar {
                 position: fixed;
-                top: 0;
                 left: 0;
-                width: min(84vw, var(--sidebar-width));
-                max-width: 84vw;
-                height: 100dvh;
+                top: 0;
+                bottom: 0;
+                width: min(82vw, 360px);
+                max-width: 82vw;
                 transform: translateX(-100%);
-                transition: transform 0.22s ease;
-                box-shadow: 0 12px 36px rgba(0,0,0,0.45);
-                padding-top: calc(16px + env(safe-area-inset-top));
-            }
-
-            #closeSidebarBtn {
-                display: inline-block;
+                transition: transform 0.2s ease;
             }
 
             body.sidebar-open #sidebar {
                 transform: translateX(0);
             }
 
-            body.sidebar-open #sidebar-overlay {
-                opacity: 1;
-                pointer-events: auto;
-            }
-
-            #topbar {
-                min-height: 50px;
-                height: 50px;
-                padding-left: max(10px, env(safe-area-inset-left));
-                padding-right: max(10px, env(safe-area-inset-right));
-            }
-
-            #topbar-title {
-                font-size: 13px;
+            #closeSidebarBtn {
+                display: inline-flex;
             }
 
             #viewer-wrap {
@@ -508,63 +418,50 @@
             }
 
             #viewer-flow {
-                padding: 20px 16px 26px;
-                font-size: 16px;
-                line-height: 1.82;
+                padding: 20px 16px 28px;
+                font-size: 17px;
+                line-height: 1.8;
             }
 
-            #rendition-mobile-taps {
-                display: block;
-                position: absolute;
-                inset: 0;
-                z-index: 24;
-                pointer-events: none;
-            }
-
-            .controls {
+            #topbar-right .spread-btn,
+            #topbar-right .nav-btn {
                 display: none;
             }
 
-            body.chrome-hidden #topbar {
-                opacity: 0;
-                pointer-events: none;
-            }
-
-            body.chrome-hidden #message {
-                top: 12px;
+            .controls .nav-btn {
+                display: none;
             }
         }
 
         @media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
             :root {
                 --topbar-height: 48px;
-                --controls-height: 50px;
+                --controls-height: 46px;
             }
 
             #topbar {
                 padding: 0 8px;
             }
 
-            #sidebar {
-                width: min(68vw, 340px);
-                max-width: 68vw;
+            #topbar-title {
+                font-size: 14px;
             }
 
             #viewer-flow {
-                padding: 12px 14px 16px;
+                padding: 12px 16px 18px;
                 font-size: 15px;
                 line-height: 1.72;
             }
+        }
 
-            #viewer-flow h1,
-            #viewer-flow h2,
-            #viewer-flow h3,
-            #viewer-flow h4,
-            #viewer-flow h5,
-            #viewer-flow h6 {
-                margin: 1.1em 0 0.65em !important;
-                line-height: 1.3 !important;
-            }
+        body.chrome-hidden #topbar,
+        body.chrome-hidden .controls {
+            display: none;
+        }
+
+        body.chrome-hidden #viewer-wrap {
+            padding-top: 0;
+            padding-bottom: 0;
         }
     </style>
 </head>
@@ -572,39 +469,33 @@
     <div id="sidebar-overlay"></div>
 
     <div id="app">
-        <aside id="sidebar">
+        <aside id="sidebar" aria-label="Table of contents">
             <div id="sidebar-header">
                 <h3>目录</h3>
-                <button id="closeSidebarBtn" type="button" aria-label="Close">×</button>
+                <button id="closeSidebarBtn" type="button" aria-label="Close menu">×</button>
             </div>
-            <div id="toc-list">
-                <button class="toc-item" type="button">Loading TOC…</button>
-            </div>
+            <div id="toc-list">正在提取目录…</div>
         </aside>
 
         <main id="main">
             <div id="topbar">
                 <div id="topbar-left">
-                    <a id="backBtn" class="top-btn" href="../../">← Library</a>
-                    <button id="menuBtn" class="top-btn" type="button">目录</button>
+                    <a id="backBtn" class="icon-btn" href='{{ "books/" | relURL }}' aria-label="Back to library">←</a>
+                    <button id="menuBtn" class="icon-btn" type="button" aria-label="Open menu">☰</button>
                 </div>
 
                 <div id="topbar-title">{{ .Title }}</div>
 
                 <div id="topbar-right">
-                    <div id="spread-switcher" title="Rendition spread mode">
-                        <button id="singlePageBtn" class="spread-btn" type="button">1P</button>
-                        <button id="doublePageBtn" class="spread-btn" type="button">2P</button>
-                    </div>
-                    <div id="mode-switcher">
-                        <button id="flowBtn" class="mode-btn" type="button">Flow</button>
-                        <button id="renditionBtn" class="mode-btn" type="button">Rendition</button>
-                    </div>
+                    <button id="flowBtn" class="mode-btn" type="button">Flow</button>
+                    <button id="renditionBtn" class="mode-btn" type="button">Rendition</button>
+                    <button id="singlePageBtn" class="spread-btn" type="button">1P</button>
+                    <button id="doublePageBtn" class="spread-btn" type="button">2P</button>
                 </div>
             </div>
 
             <div id="viewer-wrap">
-                <div id="flowPanel" class="viewer-panel">
+                <div id="flowPanel" class="viewer-panel active">
                     <div id="viewer-flow">
                         <div class="status">Loading…</div>
                     </div>
@@ -612,23 +503,13 @@
 
                 <div id="renditionPanel" class="viewer-panel">
                     <div id="viewer-rendition"></div>
-                    <div id="rendition-mobile-taps">
-                        <button id="rendition-tap-prev" class="rendition-tap-zone" type="button" aria-label="Previous page"></button>
-                        <button id="rendition-tap-next" class="rendition-tap-zone" type="button" aria-label="Next page"></button>
-                    </div>
                 </div>
             </div>
 
             <div class="controls">
-                <div class="controls-left">
-                    <button id="prevBtn" class="nav-btn" type="button">← Prev</button>
-                </div>
-
+                <button id="prevBtn" class="nav-btn" type="button">← Prev</button>
                 <div id="page-info">Loading…</div>
-
-                <div class="controls-right">
-                    <button id="nextBtn" class="nav-btn" type="button">Next →</button>
-                </div>
+                <button id="nextBtn" class="nav-btn" type="button">Next →</button>
             </div>
 
             <div id="message"></div>
@@ -636,1168 +517,1031 @@
     </div>
 
     <script>
-        const EPUB_URL = `{{ (printf "books/%s" .Params.epub_file) | relURL }}`;
-        const MODE_STORAGE_KEY = "library_reader_mode";
-        const SPREAD_STORAGE_KEY = "library_reader_spread";
-        const DEFAULT_MODE = `{{ .Params.reader_mode | default "flow" }}`;
+        (() => {
+            const EPUB_URL = `{{ (printf "books/%s" .Params.epub_file) | relURL }}`;
+            const MODE_STORAGE_KEY = `reader-mode:${EPUB_URL}`;
+            const SPREAD_STORAGE_KEY = `reader-spread:${EPUB_URL}`;
+            const DEFAULT_MODE = `{{ .Params.reader_mode | default "flow" }}`.toLowerCase();
 
-        const MOBILE_BREAKPOINT = 900;
-        const TOUCH_MOVE_THRESHOLD = 14;
-        const TAP_MAX_DURATION_MS = 350;
-        const NAV_LOCK_MS = 220;
+            const MOBILE_BREAKPOINT = 900;
+            const TOUCH_MOVE_THRESHOLD = 14;
+            const TAP_MAX_DURATION_MS = 350;
+            const NAV_LOCK_MS = 240;
 
-        const bodyEl = document.body;
-        const sidebarOverlayEl = document.getElementById("sidebar-overlay");
-        const closeSidebarBtn = document.getElementById("closeSidebarBtn");
-        const menuBtn = document.getElementById("menuBtn");
-        const tocList = document.getElementById("toc-list");
+            const bodyEl = document.body;
+            const sidebarOverlayEl = document.getElementById("sidebar-overlay");
+            const closeSidebarBtn = document.getElementById("closeSidebarBtn");
+            const menuBtn = document.getElementById("menuBtn");
+            const tocList = document.getElementById("toc-list");
 
-        const flowPanel = document.getElementById("flowPanel");
-        const renditionPanel = document.getElementById("renditionPanel");
-        const viewerFlow = document.getElementById("viewer-flow");
-        const viewerRendition = document.getElementById("viewer-rendition");
+            const flowPanel = document.getElementById("flowPanel");
+            const renditionPanel = document.getElementById("renditionPanel");
+            const viewerFlow = document.getElementById("viewer-flow");
+            const viewerRendition = document.getElementById("viewer-rendition");
 
-        const flowBtn = document.getElementById("flowBtn");
-        const renditionBtn = document.getElementById("renditionBtn");
-        const singlePageBtn = document.getElementById("singlePageBtn");
-        const doublePageBtn = document.getElementById("doublePageBtn");
+            const flowBtn = document.getElementById("flowBtn");
+            const renditionBtn = document.getElementById("renditionBtn");
+            const singlePageBtn = document.getElementById("singlePageBtn");
+            const doublePageBtn = document.getElementById("doublePageBtn");
 
-        const prevBtn = document.getElementById("prevBtn");
-        const nextBtn = document.getElementById("nextBtn");
-        const pageInfo = document.getElementById("page-info");
-        const messageEl = document.getElementById("message");
+            const prevBtn = document.getElementById("prevBtn");
+            const nextBtn = document.getElementById("nextBtn");
+            const pageInfo = document.getElementById("page-info");
+            const messageEl = document.getElementById("message");
 
-        const renditionTapPrev = document.getElementById("rendition-tap-prev");
-        const renditionTapNext = document.getElementById("rendition-tap-next");
+            let book = null;
+            let rendition = null;
+            let spineItems = [];
+            let tocEntries = [];
+            let currentMode = "flow";
+            let currentHref = "";
+            let currentDisplayHref = "";
+            let currentSectionIndex = 0;
+            let chromeVisible = true;
+            let navBusy = false;
+            let lastNavAt = 0;
+            let spreadMode = localStorage.getItem(SPREAD_STORAGE_KEY) || "single";
+            let flowHeadNodes = [];
+            let suppressClickUntil = 0;
 
-        let book = null;
-        let rendition = null;
-        let spineItems = [];
-        let tocEntries = [];
-        let spineHrefIndex = new Map();
-        let tocBaseHref = "";
-
-        let currentMode = "flow";
-        let currentHref = "";
-        let currentDisplayHref = "";
-        let currentSectionIndex = 0;
-        let chromeVisible = true;
-        let navBusy = false;
-        let spreadMode = "single";
-
-        function isMobileLike() {
-            return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
-        }
-
-        function safeDecode(value) {
-            let out = String(value || "");
-            for (let i = 0; i < 3; i++) {
-                try {
-                    const dec = decodeURIComponent(out);
-                    if (dec === out) break;
-                    out = dec;
-                } catch {
-                    break;
-                }
-            }
-            return out;
-        }
-
-        function stripHashAndQuery(value) {
-            return String(value || "").split("#")[0].split("?")[0];
-        }
-
-        function normalizeHref(href) {
-            let raw = String(href || "").trim();
-            if (!raw) return "";
-            if (raw.startsWith("epubcfi(")) return raw;
-
-            try {
-                if (/^[a-z]+:\/\//i.test(raw)) {
-                    const u = new URL(raw);
-                    raw = (u.pathname || "") + (u.hash || "");
-                }
-            } catch {}
-
-            raw = raw.replace(/\\/g, "/");
-            raw = raw.replace(/^(\.\/)+/, "");
-            raw = raw.replace(/^\/+/, "");
-            raw = safeDecode(raw);
-
-            const noHash = stripHashAndQuery(raw);
-            return noHash.replace(/^(\.\/)+/, "").replace(/^\/+/, "");
-        }
-
-        function getFragment(href) {
-            const raw = String(href || "");
-            const idx = raw.indexOf("#");
-            return idx >= 0 ? raw.slice(idx + 1) : "";
-        }
-
-        function basenamePath(path) {
-            const clean = normalizeHref(path);
-            if (!clean) return "";
-            const parts = clean.split("/");
-            return parts[parts.length - 1] || clean;
-        }
-
-        function hrefCandidates(href) {
-            const clean = normalizeHref(href);
-            if (!clean) return [];
-
-            const out = new Set();
-            out.add(clean);
-            out.add(safeDecode(clean));
-            out.add(basenamePath(clean));
-
-            ["OEBPS/", "OPS/", "EPUB/", "epub/"].forEach(prefix => {
-                if (clean.startsWith(prefix)) out.add(clean.slice(prefix.length));
-            });
-
-            const lowered = clean.toLowerCase();
-            ["xhtml/", "text/", "html/"].forEach(seg => {
-                const idx = lowered.lastIndexOf(seg);
-                if (idx >= 0) out.add(clean.slice(idx));
-            });
-
-            return Array.from(out).filter(Boolean);
-        }
-
-        function indexSpineHrefs() {
-            spineHrefIndex = new Map();
-
-            spineItems.forEach(item => {
-                hrefCandidates(item.href).forEach(key => {
-                    if (!spineHrefIndex.has(key)) {
-                        spineHrefIndex.set(key, item);
-                    }
-                });
-            });
-        }
-
-        function guessTocBaseHref() {
-            try {
-                const packaging = book && book.packaging ? book.packaging : {};
-                let navPath = packaging.navPath || packaging.navpath || "";
-
-                if (!navPath && packaging.manifest) {
-                    const manifestValues = Array.isArray(packaging.manifest)
-                        ? packaging.manifest
-                        : Object.values(packaging.manifest);
-
-                    const navItem = manifestValues.find(item => {
-                        const props = Array.isArray(item && item.properties)
-                            ? item.properties.join(" ")
-                            : String(item && item.properties || "");
-                        return /\bnav\b/i.test(props);
-                    });
-
-                    navPath = navItem && navItem.href ? navItem.href : "";
-                }
-
-                if (navPath) return normalizeHref(navPath);
-            } catch {}
-
-            const firstToc = tocEntries.find(item => item.href && String(item.href).trim());
-            if (firstToc && String(firstToc.href).includes("/")) {
-                return normalizeHref(firstToc.href);
+            function isMobileLike() {
+                return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
             }
 
-            const normalized = spineItems
-                .map(item => normalizeHref(item && item.href))
-                .filter(Boolean);
-
-            if (!normalized.length) return "";
-
-            const dirs = normalized.map(href => {
-                const idx = href.lastIndexOf("/");
-                return idx >= 0 ? href.slice(0, idx + 1) : "";
-            });
-
-            const firstDir = dirs[0];
-            if (dirs.every(dir => dir === firstDir)) return firstDir;
-
-            return normalized[0];
-        }
-
-        function isExternalHref(href) {
-            return /^(https?:|mailto:|tel:|javascript:)/i.test(String(href || ""));
-        }
-
-        function closestAnchor(target) {
-            if (!target) return null;
-            const el = target.nodeType === 1 ? target : target.parentElement;
-            return el && el.closest ? el.closest("a[href]") : null;
-        }
-
-        function closeSidebar() {
-            bodyEl.classList.remove("sidebar-open");
-        }
-
-        function toggleSidebar() {
-            bodyEl.classList.toggle("sidebar-open");
-        }
-
-        function setChromeVisible(visible) {
-            chromeVisible = visible;
-            bodyEl.classList.toggle("chrome-hidden", !visible);
-        }
-
-        function toggleChrome() {
-            setChromeVisible(!chromeVisible);
-        }
-
-        function showError(text) {
-            messageEl.textContent = text;
-            messageEl.style.display = "block";
-        }
-
-        function clearError() {
-            messageEl.style.display = "none";
-            messageEl.textContent = "";
-        }
-
-        function getStoredMode() {
-            try {
-                const value = localStorage.getItem(MODE_STORAGE_KEY);
-                return value === "flow" || value === "rendition" ? value : null;
-            } catch {
-                return null;
-            }
-        }
-
-        function storeMode(mode) {
-            try {
-                localStorage.setItem(MODE_STORAGE_KEY, mode);
-            } catch {}
-        }
-
-        function getStoredSpreadMode() {
-            try {
-                const value = localStorage.getItem(SPREAD_STORAGE_KEY);
-                return value === "double" ? "double" : "single";
-            } catch {
-                return "single";
-            }
-        }
-
-        function storeSpreadMode(mode) {
-            try {
-                localStorage.setItem(SPREAD_STORAGE_KEY, mode);
-            } catch {}
-        }
-
-        function updateSpreadButtons() {
-            singlePageBtn.classList.toggle("active", spreadMode === "single");
-            doublePageBtn.classList.toggle("active", spreadMode === "double");
-        }
-
-        function applyRenditionSpread() {
-            if (!rendition) return;
-
-            const useDouble = spreadMode === "double" && !isMobileLike();
-
-            try {
-                rendition.spread(useDouble ? "auto" : "none");
-            } catch {}
-
-            const rect = viewerRendition.getBoundingClientRect();
-            if (rect.width && rect.height) {
-                try {
-                    rendition.resize(rect.width, rect.height);
-                } catch {}
-            }
-        }
-
-        function setSpreadMode(mode) {
-            spreadMode = mode === "double" ? "double" : "single";
-            storeSpreadMode(spreadMode);
-            updateSpreadButtons();
-            applyRenditionSpread();
-            updatePageInfo();
-        }
-
-        function effectiveMode() {
-            const stored = getStoredMode();
-            if (stored) return stored;
-            if (isMobileLike()) return "rendition";
-            return DEFAULT_MODE === "rendition" ? "rendition" : "flow";
-        }
-
-        function setMode(mode) {
-            currentMode = mode;
-            storeMode(mode);
-
-            flowPanel.classList.toggle("active", mode === "flow");
-            renditionPanel.classList.toggle("active", mode === "rendition");
-            flowBtn.classList.toggle("active", mode === "flow");
-            renditionBtn.classList.toggle("active", mode === "rendition");
-
-            clearError();
-            updateButtons();
-            updatePageInfo();
-        }
-
-        function flattenToc(items, depth = 0, out = []) {
-            (items || []).forEach(item => {
-                out.push({
-                    label: (item.label || "Untitled").trim(),
-                    href: item.href || "",
-                    depth
-                });
-                if (item.subitems && item.subitems.length) {
-                    flattenToc(item.subitems, depth + 1, out);
-                }
-            });
-            return out;
-        }
-
-        function resolveRelativeHref(baseHref, href) {
-            const raw = String(href || "").trim();
-            if (!raw) {
-                return { displayHref: "", cleanHref: "", fragment: "" };
+            function showMessage(text) {
+                messageEl.textContent = String(text || "");
+                messageEl.classList.add("show");
+                clearTimeout(showMessage._timer);
+                showMessage._timer = setTimeout(() => {
+                    messageEl.classList.remove("show");
+                }, 1800);
             }
 
-            if (raw.startsWith("#")) {
-                const cleanBase = normalizeHref(baseHref);
-                const fragment = raw.slice(1);
-                return {
-                    displayHref: fragment ? `${cleanBase}#${fragment}` : cleanBase,
-                    cleanHref: cleanBase,
-                    fragment
-                };
-            }
-
-            let baseDir = normalizeHref(baseHref);
-            baseDir = baseDir && baseDir.includes("/") ? baseDir.slice(0, baseDir.lastIndexOf("/") + 1) : "";
-
-            let pathPart = raw;
-            let fragment = "";
-
-            const hashIndex = raw.indexOf("#");
-            if (hashIndex >= 0) {
-                pathPart = raw.slice(0, hashIndex);
-                fragment = raw.slice(hashIndex + 1);
-            }
-
-            let resolvedPath = pathPart;
-            try {
-                const url = new URL(pathPart || "", `https://epub.local/${baseDir}`);
-                resolvedPath = url.pathname.replace(/^\/+/, "");
-            } catch {
-                resolvedPath = pathPart.replace(/^\/+/, "");
-            }
-
-            let matchedSection = null;
-            for (const key of hrefCandidates(resolvedPath)) {
-                if (spineHrefIndex.has(key)) {
-                    matchedSection = spineHrefIndex.get(key);
-                    break;
-                }
-            }
-
-            const cleanHref = matchedSection ? normalizeHref(matchedSection.href) : normalizeHref(resolvedPath);
-
-            return {
-                displayHref: fragment ? `${cleanHref}#${fragment}` : cleanHref,
-                cleanHref,
-                fragment
-            };
-        }
-
-        function resolveTocHref(href) {
-            const base = tocBaseHref || (spineItems[0] ? spineItems[0].href : "") || "";
-            return resolveRelativeHref(base, href);
-        }
-
-        async function navigateInternalBookHref(rawHref, baseHref, preferredMode = currentMode) {
-            if (!rawHref) return;
-
-            if (isExternalHref(rawHref)) {
-                window.open(rawHref, "_blank", "noopener,noreferrer");
-                return;
-            }
-
-            const resolved = resolveRelativeHref(baseHref || currentHref, rawHref);
-            if (!resolved.cleanHref) return;
-
-            await renderSection(resolved.displayHref, preferredMode);
-        }
-
-        async function goToTocHref(href) {
-            if (!href) return;
-
-            const resolved = resolveTocHref(href);
-            if (!resolved.cleanHref) {
-                showError("TOC link could not be resolved.");
-                return;
-            }
-
-            setChromeVisible(true);
-            clearError();
-            await renderSection(resolved.displayHref, currentMode);
-            closeSidebar();
-            setTimeout(stabilizeRenditionLayout, 80);
-            setTimeout(stabilizeRenditionLayout, 220);
-        }
-
-        function bindTocItemNavigation(btn, href) {
-            let handledAt = 0;
-
-            async function runNavigate(e) {
+            function lockNav() {
                 const now = Date.now();
-                if (now - handledAt < 450) {
-                    if (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
+                if (navBusy || now - lastNavAt < NAV_LOCK_MS) return false;
+                navBusy = true;
+                lastNavAt = now;
+                return true;
+            }
+
+            function unlockNav() {
+                navBusy = false;
+            }
+
+            function normalizeHref(href) {
+                const raw = String(href || "").trim();
+                if (!raw) return "";
+                if (raw.startsWith("epubcfi(")) return raw;
+
+                const clean = raw.split("?")[0].split("#")[0].replace(/\\/g, "/");
+                const parts = [];
+
+                clean.split("/").forEach(part => {
+                    if (!part || part === ".") return;
+                    if (part === "..") {
+                        parts.pop();
+                        return;
                     }
+                    parts.push(part);
+                });
+
+                let out = parts.join("/");
+                try { out = decodeURIComponent(out); } catch {}
+                return out.replace(/^\/+/, "");
+            }
+
+            function getFragment(href) {
+                const raw = String(href || "");
+                const i = raw.indexOf("#");
+                return i >= 0 ? raw.slice(i + 1) : "";
+            }
+
+            function dirname(href) {
+                const clean = normalizeHref(href);
+                if (!clean || !clean.includes("/")) return "";
+                return clean.slice(0, clean.lastIndexOf("/") + 1);
+            }
+
+            function isExternalHref(href) {
+                return /^(https?:|mailto:|tel:|javascript:|data:|blob:|\/\/)/i.test(String(href || "").trim());
+            }
+
+            function flattenToc(items, depth = 0, out = []) {
+                (items || []).forEach(item => {
+                    out.push({
+                        label: String(item.label || "Untitled").trim(),
+                        href: String(item.href || ""),
+                        depth
+                    });
+                    if (item.subitems && item.subitems.length) {
+                        flattenToc(item.subitems, depth + 1, out);
+                    }
+                });
+                return out;
+            }
+
+            function getTocBaseHref() {
+                if (!book) return "";
+                const packaging = book.packaging || {};
+                return normalizeHref(packaging.navPath || packaging.ncxPath || "");
+            }
+
+            function markActiveToc(href) {
+                const clean = normalizeHref(href);
+                document.querySelectorAll(".toc-item").forEach(btn => {
+                    btn.classList.toggle("active", btn.dataset.href === clean);
+                });
+            }
+
+            function setChromeVisible(visible) {
+                chromeVisible = !!visible;
+                bodyEl.classList.toggle("chrome-hidden", !chromeVisible);
+                if (currentMode === "rendition") {
+                    requestAnimationFrame(stabilizeRenditionLayout);
+                }
+            }
+
+            function toggleChrome() {
+                if (!isMobileLike()) return;
+                setChromeVisible(!chromeVisible);
+            }
+
+            function openSidebar() {
+                bodyEl.classList.add("sidebar-open");
+            }
+
+            function closeSidebar() {
+                bodyEl.classList.remove("sidebar-open");
+            }
+
+            function clearError() {
+                viewerFlow.querySelectorAll(".status.error").forEach(node => node.remove());
+                messageEl.classList.remove("show");
+            }
+
+            function showError(text) {
+                const msg = String(text || "Unknown render error");
+                console.error(msg);
+
+                if (currentMode === "rendition") {
+                    viewerRendition.innerHTML = "";
+                }
+
+                viewerFlow.innerHTML = `<div class="status error">${msg}</div>`;
+                flowPanel.classList.add("active");
+                renditionPanel.classList.remove("active");
+                currentMode = "flow";
+                updateModeButtons();
+                updateButtons();
+                pageInfo.textContent = msg;
+            }
+
+            function setMode(mode) {
+                currentMode = mode === "rendition" ? "rendition" : "flow";
+                flowPanel.classList.toggle("active", currentMode === "flow");
+                renditionPanel.classList.toggle("active", currentMode === "rendition");
+                updateModeButtons();
+                updateButtons();
+                updatePageInfo();
+
+                if (currentMode === "rendition") {
+                    requestAnimationFrame(stabilizeRenditionLayout);
+                }
+            }
+
+            function effectiveMode() {
+                const stored = (localStorage.getItem(MODE_STORAGE_KEY) || DEFAULT_MODE || "flow").toLowerCase();
+                return stored === "rendition" ? "rendition" : "flow";
+            }
+
+            function saveMode(mode) {
+                localStorage.setItem(MODE_STORAGE_KEY, mode);
+            }
+
+            function saveSpread(mode) {
+                localStorage.setItem(SPREAD_STORAGE_KEY, mode);
+            }
+
+            function updateModeButtons() {
+                flowBtn.classList.toggle("active", currentMode === "flow");
+                renditionBtn.classList.toggle("active", currentMode === "rendition");
+                singlePageBtn.classList.toggle("active", spreadMode === "single");
+                doublePageBtn.classList.toggle("active", spreadMode === "double");
+                doublePageBtn.style.display = isMobileLike() ? "none" : "inline-flex";
+            }
+
+            function updateButtons() {
+                if (currentMode === "flow") {
+                    const atTop = viewerFlow.scrollTop <= 6;
+                    const atBottom = viewerFlow.scrollTop >= Math.max(0, viewerFlow.scrollHeight - viewerFlow.clientHeight - 6);
+                    prevBtn.disabled = atTop && currentSectionIndex <= 0;
+                    nextBtn.disabled = atBottom && currentSectionIndex >= spineItems.length - 1;
                     return;
                 }
-                handledAt = now;
-
-                if (e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-
-                await goToTocHref(href);
+                prevBtn.disabled = false;
+                nextBtn.disabled = false;
             }
 
-            btn.addEventListener("click", runNavigate);
-            btn.addEventListener("touchend", runNavigate, { passive: false });
+            function updatePageInfo() {
+                const total = spineItems.length || 0;
+                const chapter = total ? `${currentSectionIndex + 1}/${total}` : "0/0";
+                const hit = tocEntries.find(item => normalizeHref(item.href) === normalizeHref(currentHref));
+                const label = hit && hit.label ? ` · ${hit.label}` : "";
+                const modeText = currentMode === "rendition"
+                    ? (spreadMode === "double" && !isMobileLike() ? "Rendition 2P" : "Rendition 1P")
+                    : "Flow";
 
-            btn.addEventListener("keydown", async (e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    await runNavigate(e);
-                }
-            });
-        }
-
-        function buildToc() {
-            tocList.innerHTML = "";
-
-            if (!tocEntries.length) {
-                tocList.innerHTML = `<button class="toc-item" type="button">No TOC found</button>`;
-                return;
+                pageInfo.textContent = `${modeText} · ${chapter}${label}`;
             }
 
-            tocEntries.forEach(item => {
-                const btn = document.createElement("button");
-                btn.type = "button";
-                btn.className = `toc-item toc-depth-${Math.min(item.depth, 3)}`;
-                btn.textContent = item.label;
-                btn.dataset.href = item.href || "";
-                bindTocItemNavigation(btn, item.href || "");
-                tocList.appendChild(btn);
-            });
+            function getCurrentDisplayHref() {
+                return currentDisplayHref || currentHref || (spineItems[0] && spineItems[0].href) || "";
+            }
 
-            markActiveToc(currentHref);
-        }
+            function pathCandidates(rawPath, baseHref = "") {
+                const set = new Set();
+                const baseDir = dirname(baseHref);
 
-        function markActiveToc(href) {
-            const clean = normalizeHref(href);
-            tocList.querySelectorAll(".toc-item").forEach(el => {
-                const raw = el.dataset.href || "";
-                const resolved = resolveTocHref(raw);
-                const hit = normalizeHref(resolved.cleanHref || "") === clean;
-                el.classList.toggle("active", hit);
-            });
-        }
+                function addCandidate(value) {
+                    const norm = normalizeHref(value);
+                    if (!norm) return;
+                    set.add(norm);
+                    try { set.add(encodeURI(norm)); } catch {}
+                    try { set.add(decodeURIComponent(norm)); } catch {}
+                }
 
-        function getSectionByHref(href) {
-            const raw = String(href || "").trim();
-            if (!raw) return null;
+                addCandidate(rawPath);
 
-            if (raw.startsWith("epubcfi(")) {
                 try {
-                    const direct = book.spine.get(raw);
-                    if (direct) return direct;
+                    const url = new URL(String(rawPath || ""), `https://book.local/${baseDir}`);
+                    addCandidate(url.pathname.replace(/^\/+/, ""));
                 } catch {}
-            }
 
-            for (const key of hrefCandidates(raw)) {
-                if (spineHrefIndex.has(key)) return spineHrefIndex.get(key);
-            }
-
-            try {
-                const direct = book.spine.get(normalizeHref(raw));
-                if (direct) return direct;
-            } catch {}
-
-            return null;
-        }
-
-        function getSectionByIndex(index) {
-            if (index < 0 || index >= spineItems.length) return null;
-            return spineItems[index] || null;
-        }
-
-        function spineIndexFromLocation(loc) {
-            const href = normalizeHref(loc && loc.start ? loc.start.href : "");
-            if (!href) return null;
-            const section = getSectionByHref(href);
-            return section && typeof section.index === "number" ? section.index : null;
-        }
-
-        function waitForNextRelocation(timeout = 700) {
-            return new Promise((resolve) => {
-                if (!rendition) {
-                    resolve(null);
-                    return;
+                const direct = normalizeHref(rawPath);
+                if (direct && !direct.includes("/") && baseDir) {
+                    addCandidate(`${baseDir}${direct}`);
                 }
 
-                let done = false;
+                return Array.from(set);
+            }
 
-                const finish = () => {
-                    if (done) return;
-                    done = true;
-                    rendition.off("relocated", onRelocated);
+            function findSectionByHref(rawHref, baseHref = "") {
+                const candidates = pathCandidates(rawHref, baseHref);
+                if (!candidates.length) return null;
+
+                for (const candidate of candidates) {
                     try {
-                        resolve(rendition.currentLocation ? rendition.currentLocation() : null);
-                    } catch {
-                        resolve(null);
-                    }
-                };
-
-                const onRelocated = () => finish();
-                rendition.on("relocated", onRelocated);
-                setTimeout(finish, timeout);
-            });
-        }
-
-        function locationToken(loc) {
-            if (!loc || !loc.start) return "";
-            return `${loc.start.href || ""}|${loc.start.cfi || ""}`;
-        }
-
-        function stabilizeRenditionLayout() {
-            if (!rendition || !viewerRendition) return;
-
-            applyRenditionSpread();
-
-            const rect = viewerRendition.getBoundingClientRect();
-            if (!rect.width || !rect.height) return;
-
-            try {
-                rendition.resize(rect.width, rect.height);
-            } catch {}
-
-            setTimeout(() => {
-                if (!rendition || !viewerRendition) return;
-                applyRenditionSpread();
-                const rect2 = viewerRendition.getBoundingClientRect();
-                if (!rect2.width || !rect2.height) return;
-                try {
-                    rendition.resize(rect2.width, rect2.height);
-                } catch {}
-            }, 120);
-        }
-
-        function isFlowAtTop() {
-            return viewerFlow.scrollTop <= 6;
-        }
-
-        function isFlowAtBottom() {
-            return viewerFlow.scrollTop >= Math.max(0, viewerFlow.scrollHeight - viewerFlow.clientHeight - 6);
-        }
-
-        function updateButtons() {
-            if (currentMode === "flow") {
-                prevBtn.disabled = isFlowAtTop() && currentSectionIndex <= 0;
-                nextBtn.disabled = isFlowAtBottom() && currentSectionIndex >= spineItems.length - 1;
-                return;
-            }
-            prevBtn.disabled = false;
-            nextBtn.disabled = false;
-        }
-
-        function updatePageInfo() {
-            const modeText = currentMode === "rendition"
-                ? (spreadMode === "double" && !isMobileLike() ? "Rendition 2P" : "Rendition 1P")
-                : "Flow";
-
-            const total = spineItems.length || 0;
-            const chapter = total ? `${currentSectionIndex + 1}/${total}` : "0/0";
-            const hit = tocEntries.find(item => {
-                const resolved = resolveTocHref(item.href || "");
-                return normalizeHref(resolved.cleanHref || "") === normalizeHref(currentHref);
-            });
-            const tocLabel = hit ? hit.label : "";
-            pageInfo.textContent = tocLabel ? `${modeText} · ${chapter} · ${tocLabel}` : `${modeText} · ${chapter}`;
-        }
-
-        function scrollToFragmentInFlow(fragment) {
-            if (!fragment) return;
-
-            let target = null;
-            try {
-                const safe = window.CSS && CSS.escape ? CSS.escape(fragment) : fragment;
-                target = viewerFlow.querySelector(`#${safe}`) || viewerFlow.querySelector(`[name="${safe}"]`);
-            } catch {
-                target = viewerFlow.querySelector(`[id="${fragment}"]`) || viewerFlow.querySelector(`[name="${fragment}"]`);
-            }
-
-            if (target) {
-                target.scrollIntoView({ behavior: "auto", block: "start" });
-            }
-        }
-
-        function appendHeadAssetsForFlow(parsed, section) {
-            const headNodes = Array.from(parsed.head ? parsed.head.children : []);
-            headNodes.forEach(node => {
-                const tag = node.tagName ? node.tagName.toLowerCase() : "";
-                if (tag !== "style" && tag !== "link") return;
-
-                const clone = node.cloneNode(true);
-
-                if (tag === "link") {
-                    const href = clone.getAttribute("href");
-                    if (!href) return;
-                    try {
-                        clone.setAttribute("href", section.resolve(href));
+                        const direct = book.spine.get(candidate);
+                        if (direct) return direct;
                     } catch {}
                 }
 
-                viewerFlow.appendChild(clone);
-            });
-        }
+                for (const candidate of candidates) {
+                    const exact = spineItems.find(item => normalizeHref(item && item.href) === candidate);
+                    if (exact) return exact;
+                }
 
-        function rewriteSvgLinks(section, root) {
-            root.querySelectorAll("image").forEach(el => {
-                let raw = el.getAttribute("href");
-                if (!raw) raw = el.getAttribute("xlink:href");
-                if (!raw || isExternalHref(raw)) return;
+                for (const candidate of candidates) {
+                    const lower = candidate.toLowerCase();
+                    const matches = spineItems.filter(item => normalizeHref(item && item.href).toLowerCase() === lower);
+                    if (matches.length === 1) return matches[0];
+                }
 
-                let resolved = raw;
-                try {
-                    resolved = section.resolve(raw);
-                } catch {}
+                for (const candidate of candidates) {
+                    const base = candidate.split("/").pop();
+                    if (!base) continue;
+                    const matches = spineItems.filter(item => {
+                        const href = normalizeHref(item && item.href);
+                        return href && href.split("/").pop() === base;
+                    });
+                    if (matches.length === 1) return matches[0];
+                }
 
-                try { el.setAttribute("href", resolved); } catch {}
-                try { el.setAttribute("xlink:href", resolved); } catch {}
-                try { el.setAttributeNS("http://www.w3.org/1999/xlink", "href", resolved); } catch {}
-            });
-        }
+                return null;
+            }
 
-        function rewriteFlowResources(section) {
-            viewerFlow.querySelectorAll("[src]").forEach(el => {
-                const src = el.getAttribute("src");
-                if (!src || isExternalHref(src)) return;
-                try { el.setAttribute("src", section.resolve(src)); } catch {}
-            });
+            function resolveBookHref(rawHref, baseHref = "") {
+                const raw = String(rawHref || "").trim();
+                if (!raw) {
+                    return { displayHref: "", cleanHref: "", fragment: "", section: null, external: false };
+                }
 
-            viewerFlow.querySelectorAll("[poster]").forEach(el => {
-                const poster = el.getAttribute("poster");
-                if (!poster || isExternalHref(poster)) return;
-                try { el.setAttribute("poster", section.resolve(poster)); } catch {}
-            });
-
-            viewerFlow.querySelectorAll("link[href]").forEach(el => {
-                const href = el.getAttribute("href");
-                if (!href || isExternalHref(href)) return;
-                try { el.setAttribute("href", section.resolve(href)); } catch {}
-            });
-
-            rewriteSvgLinks(section, viewerFlow);
-
-            viewerFlow.querySelectorAll("a[href]").forEach(a => {
-                const raw = a.getAttribute("href") || "";
-                if (!raw) return;
+                if (raw.startsWith("epubcfi(")) {
+                    return { displayHref: raw, cleanHref: raw, fragment: "", section: null, external: false };
+                }
 
                 if (isExternalHref(raw)) {
-                    a.setAttribute("target", "_blank");
-                    a.setAttribute("rel", "noopener noreferrer");
-                    return;
+                    return { displayHref: raw, cleanHref: raw, fragment: "", section: null, external: true };
                 }
 
-                a.addEventListener("click", async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
+                const fragment = getFragment(raw);
+                let pathPart = raw.split("#")[0];
 
-                    if (raw.startsWith("#")) {
-                        scrollToFragmentInFlow(raw.slice(1));
-                        return;
-                    }
+                if (!pathPart) {
+                    pathPart = normalizeHref(baseHref);
+                }
 
-                    await navigateInternalBookHref(raw, currentHref, "flow");
+                const section = findSectionByHref(pathPart, baseHref);
+                const cleanHref = section ? normalizeHref(section.href) : normalizeHref(pathPart);
+                const displayHref = fragment ? `${cleanHref}#${fragment}` : cleanHref;
+
+                return { displayHref, cleanHref, fragment, section, external: false };
+            }
+
+            function removeFlowHeadNodes() {
+                flowHeadNodes.forEach(node => {
+                    try { node.remove(); } catch {}
                 });
-            });
-        }
-
-        function installFlowTouchBehavior() {
-            let startY = 0;
-            let moved = false;
-            let startedOnAnchor = false;
-            let startTime = 0;
-
-            viewerFlow.addEventListener("touchstart", (e) => {
-                if (!isMobileLike()) return;
-                if (!e.touches || e.touches.length !== 1) return;
-                startY = e.touches[0].clientY;
-                moved = false;
-                startedOnAnchor = !!closestAnchor(e.target);
-                startTime = Date.now();
-            }, { passive: true });
-
-            viewerFlow.addEventListener("touchmove", (e) => {
-                if (!isMobileLike()) return;
-                if (!e.touches || e.touches.length !== 1) return;
-                if (Math.abs(e.touches[0].clientY - startY) > TOUCH_MOVE_THRESHOLD) {
-                    moved = true;
-                }
-            }, { passive: true });
-
-            viewerFlow.addEventListener("touchend", async () => {
-                if (!isMobileLike()) return;
-                if (startedOnAnchor || moved) return;
-                if (Date.now() - startTime > TAP_MAX_DURATION_MS) return;
-                toggleChrome();
-            }, { passive: true });
-        }
-
-        async function flowPagePrev() {
-            const step = Math.max(220, Math.floor(viewerFlow.clientHeight * 0.9));
-
-            if (viewerFlow.scrollTop > 6) {
-                viewerFlow.scrollBy({ top: -step, behavior: "smooth" });
-                setTimeout(updateButtons, 220);
-                return;
+                flowHeadNodes = [];
             }
 
-            const prevSection = getSectionByIndex(currentSectionIndex - 1);
-            if (!prevSection) return;
+            function parseLoadedSection(loaded) {
+                if (!loaded) return null;
 
-            await renderSection(prevSection.href, "flow");
-            requestAnimationFrame(() => {
-                viewerFlow.scrollTop = Math.max(0, viewerFlow.scrollHeight - viewerFlow.clientHeight);
-                updateButtons();
-            });
-        }
-
-        async function flowPageNext() {
-            const step = Math.max(220, Math.floor(viewerFlow.clientHeight * 0.9));
-            const maxScrollTop = Math.max(0, viewerFlow.scrollHeight - viewerFlow.clientHeight);
-
-            if (viewerFlow.scrollTop < maxScrollTop - 6) {
-                viewerFlow.scrollBy({ top: step, behavior: "smooth" });
-                setTimeout(updateButtons, 220);
-                return;
-            }
-
-            const nextSection = getSectionByIndex(currentSectionIndex + 1);
-            if (!nextSection) return;
-
-            await renderSection(nextSection.href, "flow");
-            requestAnimationFrame(() => {
-                viewerFlow.scrollTop = 0;
-                updateButtons();
-            });
-        }
-
-        async function safePaginatedStep(direction) {
-            if (!rendition) return;
-
-            const before = rendition.currentLocation ? rendition.currentLocation() : null;
-            const beforeIndex = spineIndexFromLocation(before);
-            const beforeToken = locationToken(before);
-            const beforeTarget =
-                (before && before.start && (before.start.cfi || before.start.href)) ||
-                currentDisplayHref ||
-                currentHref ||
-                "";
-
-            try {
-                if (direction === "next") {
-                    rendition.next();
-                } else {
-                    rendition.prev();
-                }
-            } catch {}
-
-            const after = await waitForNextRelocation(700);
-            const afterToken = locationToken(after);
-            const afterIndex = spineIndexFromLocation(after);
-
-            if (!afterToken || afterToken === beforeToken) {
-                const adjacent = getSectionByIndex(currentSectionIndex + (direction === "next" ? 1 : -1));
-                if (adjacent) {
-                    await renderSection(adjacent.href, "rendition");
-                }
-                return;
-            }
-
-            if (!isMobileLike()) return;
-
-            const jumpedBackward =
-                direction === "next" &&
-                beforeIndex !== null &&
-                afterIndex !== null &&
-                afterIndex < beforeIndex;
-
-            const jumpedForward =
-                direction === "prev" &&
-                beforeIndex !== null &&
-                afterIndex !== null &&
-                afterIndex > beforeIndex;
-
-            if (jumpedBackward || jumpedForward) {
-                showError("This page was unstable in paginated mode. Switched to flow mode.");
-                await renderSection(beforeTarget, "flow");
-            }
-        }
-
-        async function withNavLock(fn) {
-            if (navBusy) return;
-            navBusy = true;
-            try {
-                await fn();
-            } finally {
-                setTimeout(() => {
-                    navBusy = false;
-                }, NAV_LOCK_MS);
-            }
-        }
-
-        async function ensureRendition() {
-            if (rendition) return rendition;
-
-            rendition = book.renderTo("viewer-rendition", {
-                width: "100%",
-                height: "100%",
-                spread: spreadMode === "double" && !isMobileLike() ? "auto" : "none",
-                minSpreadWidth: 920,
-                manager: "default",
-                flow: "paginated",
-                allowScriptedContent: false
-            });
-
-            rendition.themes.default({
-                body: {
-                    background: "#f8f5ef",
-                    color: "#1f2630",
-                    "line-height": "1.7",
-                    "font-family": "\"PingFang SC\", \"Noto Serif CJK SC\", Georgia, serif"
-                },
-                "p, li": {
-                    "font-size": "1rem"
-                },
-                img: {
-                    "max-width": "100%"
-                }
-            });
-
-            rendition.hooks.content.register((contents) => {
-                const doc = contents.document;
-                let handledAt = 0;
-
-                async function handleInternalLink(e) {
-                    const anchor = closestAnchor(e.target);
-                    if (!anchor) return;
-
-                    const raw = anchor.getAttribute("href") || "";
-                    if (!raw || isExternalHref(raw)) return;
-
-                    const now = Date.now();
-                    if (now - handledAt < 400) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
+                if (typeof loaded === "string") {
+                    const parser = new DOMParser();
+                    let doc = null;
+                    try {
+                        doc = parser.parseFromString(loaded, "application/xhtml+xml");
+                        if (doc && doc.querySelector("parsererror")) throw new Error("xhtml parse failed");
+                    } catch {
+                        doc = parser.parseFromString(loaded, "text/html");
                     }
-                    handledAt = now;
+                    return doc;
+                }
 
-                    e.preventDefault();
-                    e.stopPropagation();
+                if (loaded.nodeType === 9) return loaded;
+                if (loaded.ownerDocument && loaded.ownerDocument.nodeType === 9) return loaded.ownerDocument;
+                if (loaded.documentElement) return loaded;
+                if (loaded.contents && loaded.contents.document) return loaded.contents.document;
+                return null;
+            }
 
-                    if (raw.startsWith("#")) {
-                        const base = normalizeHref(contents.section.href);
-                        await renderSection(`${base}${raw}`, "rendition");
+            function appendFlowHeadAssets(doc, section) {
+                removeFlowHeadNodes();
+                if (!doc || !doc.head) return;
+
+                Array.from(doc.head.children).forEach(node => {
+                    const tag = node.tagName ? node.tagName.toLowerCase() : "";
+                    if (tag !== "style" && tag !== "link") return;
+
+                    const clone = node.cloneNode(true);
+
+                    if (tag === "link") {
+                        const rel = String(clone.getAttribute("rel") || "").toLowerCase();
+                        if (rel !== "stylesheet") return;
+
+                        const href = clone.getAttribute("href");
+                        if (href && !isExternalHref(href)) {
+                            try {
+                                clone.setAttribute("href", section.resolve(href));
+                            } catch {}
+                        }
+                    }
+
+                    clone.setAttribute("data-flow-asset", "1");
+                    document.head.appendChild(clone);
+                    flowHeadNodes.push(clone);
+                });
+            }
+
+            function scrollToFragmentInFlow(fragment) {
+                if (!fragment) return;
+
+                let target = null;
+
+                try {
+                    const safe = window.CSS && CSS.escape ? CSS.escape(fragment) : fragment;
+                    target =
+                        viewerFlow.querySelector(`#${safe}`) ||
+                        viewerFlow.querySelector(`[name="${safe}"]`);
+                } catch {}
+
+                if (!target) {
+                    target =
+                        viewerFlow.querySelector(`[id="${fragment}"]`) ||
+                        viewerFlow.querySelector(`[name="${fragment}"]`);
+                }
+
+                if (target) {
+                    target.scrollIntoView({ behavior: "auto", block: "start" });
+                }
+            }
+
+            function rewriteFlowResources(section) {
+                viewerFlow.querySelectorAll("[src]").forEach(el => {
+                    const src = el.getAttribute("src");
+                    if (!src || isExternalHref(src)) return;
+                    try { el.setAttribute("src", section.resolve(src)); } catch {}
+                });
+
+                viewerFlow.querySelectorAll("[poster]").forEach(el => {
+                    const poster = el.getAttribute("poster");
+                    if (!poster || isExternalHref(poster)) return;
+                    try { el.setAttribute("poster", section.resolve(poster)); } catch {}
+                });
+
+                viewerFlow.querySelectorAll("image").forEach(el => {
+                    const href = el.getAttribute("href") || el.getAttribute("xlink:href");
+                    if (!href || isExternalHref(href)) return;
+                    try {
+                        const resolved = section.resolve(href);
+                        el.setAttribute("href", resolved);
+                        el.setAttribute("xlink:href", resolved);
+                    } catch {}
+                });
+
+                viewerFlow.querySelectorAll("a[href]").forEach(a => {
+                    const raw = a.getAttribute("href");
+                    if (!raw) return;
+
+                    if (isExternalHref(raw)) {
+                        a.setAttribute("target", "_blank");
+                        a.setAttribute("rel", "noopener noreferrer");
                         return;
                     }
 
-                    await navigateInternalBookHref(raw, contents.section.href, "rendition");
-                }
+                    const handler = async (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
 
-                doc.addEventListener("click", handleInternalLink, true);
-                doc.addEventListener("touchend", handleInternalLink, { capture: true, passive: false });
+                        const resolved = resolveBookHref(raw, currentHref);
+                        if (!resolved.displayHref && resolved.fragment) {
+                            scrollToFragmentInFlow(resolved.fragment);
+                            return;
+                        }
 
-                setTimeout(stabilizeRenditionLayout, 40);
-            });
+                        if (!resolved.cleanHref || resolved.cleanHref === currentHref) {
+                            scrollToFragmentInFlow(resolved.fragment);
+                            return;
+                        }
 
-            rendition.on("relocated", (location) => {
-                const start = location && location.start ? location.start : {};
-                if (start.href) {
-                    currentHref = normalizeHref(start.href);
-                    currentDisplayHref = start.cfi || start.href || currentHref;
-                }
+                        await renderSection(raw, "flow", currentHref);
+                    };
 
-                const idx = spineIndexFromLocation(location);
-                currentSectionIndex = idx !== null ? idx : 0;
+                    a.addEventListener("click", handler, true);
+                    a.addEventListener("touchend", (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handler(event);
+                    }, { passive: false, capture: true });
+                });
+            }
+
+            function setCurrentFromSection(section, displayHref = "") {
+                if (!section) return;
+
+                currentHref = normalizeHref(section.href);
+                currentDisplayHref = displayHref || currentHref;
+                currentSectionIndex = typeof section.index === "number"
+                    ? section.index
+                    : Math.max(0, spineItems.findIndex(item => normalizeHref(item && item.href) === currentHref));
 
                 markActiveToc(currentHref);
                 updateButtons();
                 updatePageInfo();
-            });
+            }
 
-            rendition.on("rendered", () => {
-                clearError();
-                stabilizeRenditionLayout();
-            });
+            async function renderFlow(targetHref, baseHref = currentHref) {
+                const resolved = resolveBookHref(targetHref, baseHref);
+                const section = resolved.section || findSectionByHref(resolved.cleanHref);
 
-            rendition.on("displayError", () => {
-                showError("This chapter failed in rendition mode.");
-            });
+                if (!section) {
+                    throw new Error(`section not found: ${targetHref}`);
+                }
 
-            return rendition;
-        }
+                const loaded = await section.load(book.load.bind(book));
+                const parsed = parseLoadedSection(loaded);
+                if (!parsed) {
+                    throw new Error("section parse failed");
+                }
 
-        async function renderFlow(displayHref, cleanHref, section) {
-            setMode("flow");
-            currentDisplayHref = displayHref || cleanHref;
+                appendFlowHeadAssets(parsed, section);
 
-            await section.load(book.load.bind(book));
+                const body = parsed.body || parsed.querySelector("body");
+                const html = body ? body.innerHTML : (parsed.documentElement ? parsed.documentElement.innerHTML : "");
+                viewerFlow.innerHTML = `<div class="flow-content">${html}</div>`;
 
-            let markup = "";
-            try {
-                markup = await section.render();
-            } catch {
-                if (section.document && section.document.body) {
-                    markup = section.document.documentElement.outerHTML;
-                } else {
-                    throw new Error("Failed to render section in flow mode.");
+                rewriteFlowResources(section);
+
+                setMode("flow");
+                setCurrentFromSection(section, resolved.displayHref);
+                viewerFlow.scrollTop = 0;
+
+                if (resolved.fragment) {
+                    requestAnimationFrame(() => scrollToFragmentInFlow(resolved.fragment));
+                }
+
+                if (typeof section.unload === "function") {
+                    try { section.unload(); } catch {}
                 }
             }
 
-            const parsed = new DOMParser().parseFromString(markup, "text/html");
-            if (!parsed || !parsed.body) {
-                throw new Error("Failed to parse section HTML.");
+            function applyRenditionSpread() {
+                if (!rendition) return;
+                const spread = isMobileLike()
+                    ? "none"
+                    : (spreadMode === "double" ? "auto" : "none");
+                try { rendition.spread(spread); } catch {}
             }
 
-            viewerFlow.innerHTML = "";
-            appendHeadAssetsForFlow(parsed, section);
+            function stabilizeRenditionLayout() {
+                if (!rendition || currentMode !== "rendition") return;
 
-            const content = document.createElement("div");
-            content.className = "flow-content";
-            content.innerHTML = parsed.body.innerHTML;
-            viewerFlow.appendChild(content);
+                applyRenditionSpread();
 
-            rewriteFlowResources(section);
-            viewerFlow.scrollTop = 0;
+                const rect = viewerRendition.getBoundingClientRect();
+                if (!rect.width || !rect.height) return;
 
-            currentHref = cleanHref;
-            currentSectionIndex = typeof section.index === "number" ? section.index : 0;
-            markActiveToc(cleanHref);
-            updateButtons();
-            updatePageInfo();
-
-            const fragment = getFragment(displayHref);
-            if (fragment) scrollToFragmentInFlow(fragment);
-
-            if (typeof section.unload === "function") {
-                section.unload();
-            }
-
-            clearError();
-        }
-
-        async function renderRendition(displayHref, cleanHref, section) {
-            setMode("rendition");
-            currentDisplayHref = displayHref || cleanHref;
-
-            const r = await ensureRendition();
-
-            currentHref = cleanHref;
-            currentSectionIndex = typeof section.index === "number" ? section.index : 0;
-            markActiveToc(cleanHref);
-            updateButtons();
-            updatePageInfo();
-
-            await r.display(currentDisplayHref || cleanHref);
-            stabilizeRenditionLayout();
-            setTimeout(stabilizeRenditionLayout, 160);
-            clearError();
-        }
-
-        async function renderSection(href, forcedMode = null) {
-            const displayHref = String(href || "");
-            const cleanHref = normalizeHref(displayHref);
-            const section = getSectionByHref(cleanHref);
-
-            if (!section) {
-                showError(`Render failed: section not found: ${cleanHref}`);
-                return;
-            }
-
-            const primaryMode = forcedMode || effectiveMode();
-            const backupMode = primaryMode === "rendition" ? "flow" : "rendition";
-
-            try {
-                if (primaryMode === "rendition") {
-                    await renderRendition(displayHref, cleanHref, section);
-                } else {
-                    await renderFlow(displayHref, cleanHref, section);
-                }
-            } catch (err1) {
                 try {
-                    if (backupMode === "rendition") {
-                        await renderRendition(displayHref, cleanHref, section);
-                    } else {
-                        await renderFlow(displayHref, cleanHref, section);
+                    rendition.resize(rect.width, rect.height);
+                } catch {}
+
+                setTimeout(() => {
+                    if (!rendition || currentMode !== "rendition") return;
+                    const rect2 = viewerRendition.getBoundingClientRect();
+                    if (!rect2.width || !rect2.height) return;
+                    try {
+                        applyRenditionSpread();
+                        rendition.resize(rect2.width, rect2.height);
+                    } catch {}
+                }, 100);
+            }
+
+            function locationToken(loc) {
+                if (!loc || !loc.start) return "";
+                return `${loc.start.href || ""}|${loc.start.cfi || ""}`;
+            }
+
+            function waitForRelocation(timeout = 900) {
+                return new Promise(resolve => {
+                    if (!rendition) {
+                        resolve(null);
+                        return;
                     }
-                    showError(`Primary mode failed. Switched to ${backupMode}.`);
-                } catch (err2) {
-                    console.error("Both render modes failed.", err1, err2);
-                    showError("This chapter failed in both flow and rendition mode.");
+
+                    let done = false;
+
+                    const finish = (loc = null) => {
+                        if (done) return;
+                        done = true;
+                        try { rendition.off("relocated", onRelocated); } catch {}
+                        resolve(loc);
+                    };
+
+                    const onRelocated = (loc) => finish(loc);
+                    rendition.on("relocated", onRelocated);
+
+                    setTimeout(() => {
+                        try { finish(rendition.currentLocation ? rendition.currentLocation() : null); }
+                        catch { finish(null); }
+                    }, timeout);
+                });
+            }
+
+            function closestAnchor(startNode) {
+                let node = startNode;
+                while (node) {
+                    if (node.nodeType === 1 && node.tagName && node.tagName.toLowerCase() === "a" && node.getAttribute("href")) {
+                        return node;
+                    }
+                    node = node.parentNode;
+                }
+                return null;
+            }
+
+            function handleRenditionTap(ratio) {
+                if (!isMobileLike() || currentMode !== "rendition") return;
+                if (ratio <= 0.32) {
+                    renditionPrev();
+                } else if (ratio >= 0.68) {
+                    renditionNext();
+                } else {
+                    toggleChrome();
                 }
             }
-        }
 
-        async function prevAction() {
-            await withNavLock(async () => {
+            function bindRenditionContents(contents) {
+                const doc = contents.document;
+                if (!doc || doc.documentElement.dataset.readerBound === "1") return;
+                doc.documentElement.dataset.readerBound = "1";
+
+                const touchState = {
+                    x: 0,
+                    y: 0,
+                    moved: false,
+                    startedAt: 0
+                };
+
+                const touchStart = (event) => {
+                    if (!event.touches || event.touches.length !== 1) return;
+                    const touch = event.touches[0];
+                    touchState.x = touch.clientX;
+                    touchState.y = touch.clientY;
+                    touchState.moved = false;
+                    touchState.startedAt = Date.now();
+                };
+
+                const touchMove = (event) => {
+                    if (!event.touches || event.touches.length !== 1) return;
+                    const touch = event.touches[0];
+                    if (
+                        Math.abs(touch.clientX - touchState.x) > TOUCH_MOVE_THRESHOLD ||
+                        Math.abs(touch.clientY - touchState.y) > TOUCH_MOVE_THRESHOLD
+                    ) {
+                        touchState.moved = true;
+                    }
+                };
+
+                const activateInternalLink = async (anchor, event) => {
+                    const rawHref = anchor.getAttribute("href") || "";
+                    if (!rawHref) return false;
+
+                    if (isExternalHref(rawHref)) {
+                        anchor.setAttribute("target", "_blank");
+                        anchor.setAttribute("rel", "noopener noreferrer");
+                        return false;
+                    }
+
+                    event.preventDefault();
+                    event.stopPropagation();
+                    suppressClickUntil = Date.now() + 450;
+                    await renderSection(
+                        rawHref,
+                        "rendition",
+                        contents.section && contents.section.href ? contents.section.href : currentHref
+                    );
+                    return true;
+                };
+
+                doc.addEventListener("click", async (event) => {
+                    if (Date.now() < suppressClickUntil) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                    }
+
+                    const anchor = closestAnchor(event.target);
+                    if (anchor) {
+                        await activateInternalLink(anchor, event);
+                        return;
+                    }
+
+                    if (!isMobileLike() || currentMode !== "rendition") return;
+
+                    const width = contents.window.innerWidth || doc.documentElement.clientWidth || 1;
+                    const x = typeof event.clientX === "number" ? event.clientX : width / 2;
+                    handleRenditionTap(x / width);
+                    event.preventDefault();
+                    event.stopPropagation();
+                }, true);
+
+                doc.addEventListener("touchstart", touchStart, { passive: true, capture: true });
+                doc.addEventListener("touchmove", touchMove, { passive: true, capture: true });
+
+                doc.addEventListener("touchend", async (event) => {
+                    const anchor = closestAnchor(event.target);
+                    if (anchor) {
+                        await activateInternalLink(anchor, event);
+                        return;
+                    }
+
+                    if (!isMobileLike() || currentMode !== "rendition") return;
+                    if (touchState.moved) return;
+                    if (Date.now() - touchState.startedAt > TAP_MAX_DURATION_MS) return;
+
+                    const width = contents.window.innerWidth || doc.documentElement.clientWidth || 1;
+                    handleRenditionTap(touchState.x / width);
+                    suppressClickUntil = Date.now() + 450;
+                    event.preventDefault();
+                    event.stopPropagation();
+                }, { passive: false, capture: true });
+            }
+
+            async function ensureRendition() {
+                if (rendition) return rendition;
+
+                rendition = book.renderTo("viewer-rendition", {
+                    width: "100%",
+                    height: "100%",
+                    flow: "paginated",
+                    spread: "none",
+                    manager: "default",
+                    allowScriptedContent: true
+                });
+
+                rendition.themes.default({
+                    body: {
+                        "background": "#f8f5ef",
+                        "color": "#1f2630",
+                        "line-height": "1.7",
+                        "padding": "0",
+                        "margin": "0 auto"
+                    },
+                    "html, body, div, p, li, blockquote": {
+                        "overflow-wrap": "break-word"
+                    },
+                    "img, svg, video, canvas, table, iframe": {
+                        "max-width": "100%",
+                        "height": "auto"
+                    }
+                });
+
+                rendition.hooks.content.register((contents) => {
+                    bindRenditionContents(contents);
+                });
+
+                rendition.on("relocated", (location) => {
+                    const href = location && location.start && location.start.href
+                        ? normalizeHref(location.start.href)
+                        : currentHref;
+
+                    const section = href ? findSectionByHref(href) : null;
+                    if (section) {
+                        setCurrentFromSection(section, currentDisplayHref || href);
+                    } else {
+                        updatePageInfo();
+                        updateButtons();
+                    }
+                });
+
+                return rendition;
+            }
+
+            async function renderRendition(targetHref, baseHref = currentHref) {
+                const resolved = resolveBookHref(targetHref, baseHref);
+                const section = resolved.section || findSectionByHref(resolved.cleanHref);
+
+                if (!section && !String(resolved.displayHref || "").startsWith("epubcfi(")) {
+                    throw new Error(`section not found: ${targetHref}`);
+                }
+
+                setMode("rendition");
+                await ensureRendition();
+
+                setCurrentFromSection(
+                    section || { href: resolved.cleanHref, index: currentSectionIndex },
+                    resolved.displayHref
+                );
+                currentDisplayHref = resolved.displayHref || resolved.cleanHref;
+
+                applyRenditionSpread();
+                stabilizeRenditionLayout();
+
+                const waitPromise = waitForRelocation();
+                const beforeToken = locationToken(rendition.currentLocation ? rendition.currentLocation() : null);
+
+                await rendition.display(resolved.displayHref || resolved.cleanHref);
+
+                const loc = await waitPromise;
+                const afterToken = locationToken(loc);
+
+                if (beforeToken && afterToken && beforeToken === afterToken && resolved.fragment && isMobileLike()) {
+                    setTimeout(() => rendition.display(resolved.displayHref || resolved.cleanHref), 60);
+                }
+            }
+
+            async function renderSection(targetHref, forcedMode = null, baseHref = currentHref) {
                 clearError();
 
-                if (currentMode === "flow") {
-                    await flowPagePrev();
-                    updateButtons();
+                if (!lockNav()) return;
+
+                try {
+                    const mode = forcedMode || effectiveMode();
+                    const resolved = resolveBookHref(targetHref, baseHref);
+
+                    if (resolved.external) {
+                        window.open(resolved.displayHref, "_blank", "noopener,noreferrer");
+                        return;
+                    }
+
+                    if (mode === "rendition") {
+                        await renderRendition(targetHref, baseHref);
+                    } else {
+                        await renderFlow(targetHref, baseHref);
+                    }
+
+                    if (isMobileLike()) {
+                        closeSidebar();
+                    }
+                } catch (err) {
+                    showError(`Render failed: ${err && err.message ? err.message : err}`);
+                } finally {
+                    unlockNav();
+                }
+            }
+
+            async function renditionPrev() {
+                if (!rendition || currentMode !== "rendition" || !lockNav()) return;
+                try {
+                    await rendition.prev();
+                } finally {
+                    unlockNav();
+                }
+            }
+
+            async function renditionNext() {
+                if (!rendition || currentMode !== "rendition" || !lockNav()) return;
+                try {
+                    await rendition.next();
+                } finally {
+                    unlockNav();
+                }
+            }
+
+            async function flowPrev() {
+                if (currentMode !== "flow") return;
+
+                if (viewerFlow.scrollTop > 6) {
+                    viewerFlow.scrollBy({
+                        top: -Math.max(180, Math.floor(viewerFlow.clientHeight * 0.88)),
+                        behavior: "smooth"
+                    });
                     return;
                 }
 
-                if (currentMode === "rendition" && rendition) {
-                    await safePaginatedStep("prev");
+                if (currentSectionIndex <= 0) return;
+                const prev = spineItems[currentSectionIndex - 1];
+                if (prev) await renderSection(prev.href, "flow");
+            }
+
+            async function flowNext() {
+                if (currentMode !== "flow") return;
+
+                const remaining = viewerFlow.scrollHeight - viewerFlow.clientHeight - viewerFlow.scrollTop;
+                if (remaining > 6) {
+                    viewerFlow.scrollBy({
+                        top: Math.max(180, Math.floor(viewerFlow.clientHeight * 0.88)),
+                        behavior: "smooth"
+                    });
                     return;
                 }
 
-                const prevSection = getSectionByIndex(currentSectionIndex - 1);
-                if (prevSection) await renderSection(prevSection.href, currentMode);
-            });
-        }
+                if (currentSectionIndex >= spineItems.length - 1) return;
+                const next = spineItems[currentSectionIndex + 1];
+                if (next) await renderSection(next.href, "flow");
+            }
 
-        async function nextAction() {
-            await withNavLock(async () => {
-                clearError();
+            function buildToc(items) {
+                tocEntries = flattenToc(items || []);
+                tocList.innerHTML = "";
 
-                if (currentMode === "flow") {
-                    await flowPageNext();
-                    updateButtons();
+                if (!tocEntries.length) {
+                    tocList.innerHTML = `<div class="toc-item" style="cursor:default;opacity:.75">No table of contents</div>`;
                     return;
                 }
 
-                if (currentMode === "rendition" && rendition) {
-                    await safePaginatedStep("next");
-                    return;
-                }
+                const tocBase = getTocBaseHref();
 
-                const nextSection = getSectionByIndex(currentSectionIndex + 1);
-                if (nextSection) await renderSection(nextSection.href, currentMode);
-            });
-        }
+                tocEntries.forEach(item => {
+                    const btn = document.createElement("button");
+                    const resolved = resolveBookHref(item.href, tocBase);
 
-        function installUi() {
-            menuBtn.addEventListener("click", toggleSidebar);
-            closeSidebarBtn.addEventListener("click", closeSidebar);
-            sidebarOverlayEl.addEventListener("click", closeSidebar);
+                    btn.className = "toc-item";
+                    btn.type = "button";
+                    btn.dataset.href = normalizeHref(resolved.cleanHref || item.href);
+                    btn.style.paddingLeft = `${12 + item.depth * 18}px`;
+                    btn.textContent = item.label || "Untitled";
+
+                    btn.addEventListener("click", async (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        await renderSection(item.href, currentMode, tocBase);
+                    });
+
+                    btn.addEventListener("touchend", async (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        suppressClickUntil = Date.now() + 450;
+                        await renderSection(item.href, currentMode, tocBase);
+                    }, { passive: false });
+
+                    tocList.appendChild(btn);
+                });
+            }
 
             flowBtn.addEventListener("click", async () => {
-                const href = currentDisplayHref || currentHref || (spineItems[0] ? spineItems[0].href : "");
-                if (href) await renderSection(href, "flow");
+                saveMode("flow");
+                await renderSection(getCurrentDisplayHref(), "flow");
             });
 
             renditionBtn.addEventListener("click", async () => {
-                const href = currentDisplayHref || currentHref || (spineItems[0] ? spineItems[0].href : "");
-                if (href) await renderSection(href, "rendition");
+                saveMode("rendition");
+                await renderSection(getCurrentDisplayHref(), "rendition");
             });
 
-            singlePageBtn.addEventListener("click", () => setSpreadMode("single"));
-            doublePageBtn.addEventListener("click", () => setSpreadMode("double"));
+            singlePageBtn.addEventListener("click", () => {
+                spreadMode = "single";
+                saveSpread(spreadMode);
+                updateModeButtons();
+                stabilizeRenditionLayout();
+            });
 
-            prevBtn.addEventListener("click", prevAction);
-            nextBtn.addEventListener("click", nextAction);
+            doublePageBtn.addEventListener("click", () => {
+                spreadMode = "double";
+                saveSpread(spreadMode);
+                updateModeButtons();
+                stabilizeRenditionLayout();
+            });
 
-            renditionTapPrev.addEventListener("click", async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (currentMode === "rendition" && isMobileLike()) {
-                    await prevAction();
+            prevBtn.addEventListener("click", async () => {
+                if (currentMode === "rendition") {
+                    await renditionPrev();
+                } else {
+                    await flowPrev();
                 }
             });
 
-            renditionTapNext.addEventListener("click", async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (currentMode === "rendition" && isMobileLike()) {
-                    await nextAction();
+            nextBtn.addEventListener("click", async () => {
+                if (currentMode === "rendition") {
+                    await renditionNext();
+                } else {
+                    await flowNext();
                 }
             });
 
-            viewerFlow.addEventListener("scroll", () => {
-                if (currentMode === "flow") updateButtons();
-            }, { passive: true });
+            viewerFlow.addEventListener("scroll", updateButtons, { passive: true });
+            viewerFlow.addEventListener("scroll", updatePageInfo, { passive: true });
 
-            viewerRendition.addEventListener("click", () => {
-                if (currentMode === "rendition" && isMobileLike()) {
-                    toggleChrome();
-                }
+            menuBtn.addEventListener("click", () => {
+                bodyEl.classList.contains("sidebar-open") ? closeSidebar() : openSidebar();
             });
 
-            window.addEventListener("keydown", async (e) => {
-                if (e.key === "ArrowLeft" || e.key === "PageUp") {
-                    e.preventDefault();
-                    await prevAction();
-                } else if (e.key === "ArrowRight" || e.key === "PageDown") {
-                    e.preventDefault();
-                    await nextAction();
-                } else if (e.key.toLowerCase() === "m") {
-                    e.preventDefault();
-                    toggleSidebar();
-                }
-            });
+            closeSidebarBtn.addEventListener("click", closeSidebar);
+            sidebarOverlayEl.addEventListener("click", closeSidebar);
 
-            window.addEventListener("resize", stabilizeRenditionLayout);
-            window.addEventListener("orientationchange", () => {
-                setTimeout(stabilizeRenditionLayout, 80);
-                setTimeout(stabilizeRenditionLayout, 260);
-            });
-        }
-
-        async function start() {
-            installUi();
-            installFlowTouchBehavior();
-
-            spreadMode = getStoredSpreadMode();
-            updateSpreadButtons();
-
-            try {
-                book = ePub(EPUB_URL);
-                await book.ready;
-
-                spineItems = (book.spine && (book.spine.spineItems || book.spine.items)) || [];
-                indexSpineHrefs();
-
-                const nav = await book.loaded.navigation;
-                tocEntries = flattenToc(nav && nav.toc ? nav.toc : []);
-                tocBaseHref = guessTocBaseHref();
-                buildToc();
-
-                if (!spineItems.length) {
-                    viewerFlow.innerHTML = `<div class="status error">No readable spine found.</div>`;
-                    setMode("flow");
+            document.addEventListener("keydown", async (event) => {
+                if (event.key === "Escape") {
+                    closeSidebar();
                     return;
                 }
 
-                const initialHref = spineItems[0].href;
-                const initialMode = effectiveMode();
+                if (event.key === "ArrowLeft") {
+                    if (currentMode === "rendition") await renditionPrev();
+                    else await flowPrev();
+                }
 
-                await renderSection(initialHref, initialMode);
+                if (event.key === "ArrowRight") {
+                    if (currentMode === "rendition") await renditionNext();
+                    else await flowNext();
+                }
+            });
+
+            window.addEventListener("resize", () => {
+                updateModeButtons();
                 updateButtons();
-                updatePageInfo();
-            } catch (err) {
-                console.error("Book init failed:", err);
-                setMode("flow");
-                viewerFlow.innerHTML = `<div class="status error">Failed to load this EPUB.</div>`;
-                showError("Failed to load this EPUB.");
-            }
-        }
 
-        start();
+                if (!isMobileLike()) {
+                    closeSidebar();
+                    setChromeVisible(true);
+                }
+
+                if (currentMode === "rendition") {
+                    stabilizeRenditionLayout();
+                }
+            });
+
+            window.addEventListener("orientationchange", () => {
+                setTimeout(() => {
+                    updateModeButtons();
+                    updateButtons();
+
+                    if (currentMode === "rendition") {
+                        stabilizeRenditionLayout();
+                    }
+                }, 180);
+            });
+
+            async function init() {
+                try {
+                    book = ePub(EPUB_URL);
+                    await book.ready;
+
+                    spineItems = (book.spine && (book.spine.spineItems || book.spine.items))
+                        ? (book.spine.spineItems || book.spine.items)
+                        : [];
+
+                    let navigation = book.navigation;
+                    try {
+                        if (book.loaded && book.loaded.navigation) {
+                            navigation = await book.loaded.navigation;
+                        }
+                    } catch {}
+
+                    buildToc(navigation && navigation.toc ? navigation.toc : []);
+                    updateModeButtons();
+
+                    const initialTarget = (spineItems[0] && spineItems[0].href) || "";
+                    const initialMode = effectiveMode();
+                    await renderSection(initialTarget, initialMode, "");
+                } catch (err) {
+                    showError(`Failed to open this book: ${err && err.message ? err.message : err}`);
+                }
+            }
+
+            init();
+        })();
     </script>
 </body>
 </html>
