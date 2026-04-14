@@ -779,6 +779,44 @@
                 return null;
             }
 
+            function getTapRatio(contents, clientX) {
+                try {
+                    const frameEl =
+                        contents &&
+                        contents.document &&
+                        contents.document.defaultView &&
+                        contents.document.defaultView.frameElement;
+
+                    const outerRect = viewerRendition.getBoundingClientRect();
+
+                    if (frameEl && outerRect && outerRect.width > 0) {
+                        const frameRect = frameEl.getBoundingClientRect();
+                        const absoluteX = frameRect.left + clientX;
+                        const ratio = (absoluteX - outerRect.left) / outerRect.width;
+                        return Math.max(0, Math.min(1, ratio));
+                    }
+                } catch {}
+
+                const fallbackWidth =
+                    (contents && contents.window && contents.window.innerWidth) ||
+                    (contents && contents.document && contents.document.documentElement && contents.document.documentElement.clientWidth) ||
+                    1;
+
+                return Math.max(0, Math.min(1, clientX / fallbackWidth));
+            }
+
+            function handleRenditionTapByRatio(ratio) {
+                if (!isMobileLike() || currentMode !== "rendition") return;
+
+                if (ratio <= 0.42) {
+                    renditionPrev();
+                } else if (ratio >= 0.58) {
+                    renditionNext();
+                } else {
+                    showMessage("Tap left/right to turn pages");
+                }
+            }
+
             function pathCandidates(rawPath, baseHref = "") {
                 const set = new Set();
                 const baseDir = dirname(baseHref);
@@ -1131,17 +1169,6 @@
                 return null;
             }
 
-            function handleRenditionTap(ratio) {
-                if (!isMobileLike() || currentMode !== "rendition") return;
-                if (ratio <= 0.32) {
-                    renditionPrev();
-                } else if (ratio >= 0.68) {
-                    renditionNext();
-                } else {
-                    toggleChrome();
-                }
-            }
-
             function bindRenditionContents(contents) {
                 const doc = contents.document;
                 if (!doc || doc.documentElement.dataset.readerBound === "1") return;
@@ -1218,9 +1245,12 @@
 
                     if (currentMode !== "rendition") return;
 
-                    const width = contents.window.innerWidth || doc.documentElement.clientWidth || 1;
-                    const x = typeof event.clientX === "number" ? event.clientX : width / 2;
-                    handleRenditionTap(x / width);
+                    const x = typeof event.clientX === "number"
+                        ? event.clientX
+                        : ((contents.window && contents.window.innerWidth) || 1) / 2;
+
+                    const ratio = getTapRatio(contents, x);
+                    handleRenditionTapByRatio(ratio);
                     event.preventDefault();
                     event.stopPropagation();
                 }, true);
@@ -1241,8 +1271,8 @@
 
                     suppressClickUntil = Date.now() + 500;
 
-                    const width = contents.window.innerWidth || doc.documentElement.clientWidth || 1;
-                    handleRenditionTap(touchState.x / width);
+                    const ratio = getTapRatio(contents, touchState.x);
+                    handleRenditionTapByRatio(ratio);
 
                     event.preventDefault();
                     event.stopPropagation();
