@@ -660,9 +660,7 @@
         function normalizeHref(href) {
             const raw = String(href || "").trim();
             if (!raw) return "";
-
             if (raw.startsWith("epubcfi(")) return raw;
-
             const noHash = raw.split("#")[0];
             return noHash.replace(/^(\.\/)+/, "");
         }
@@ -749,6 +747,8 @@
             renditionBtn.classList.toggle("active", mode === "rendition");
 
             clearError();
+            updateButtons();
+            updatePageInfo();
         }
 
         function flattenToc(items, depth = 0, out = []) {
@@ -817,9 +817,23 @@
             return spineItems[index] || null;
         }
 
+        function isFlowAtTop() {
+            return viewerFlow.scrollTop <= 6;
+        }
+
+        function isFlowAtBottom() {
+            return viewerFlow.scrollTop >= Math.max(0, viewerFlow.scrollHeight - viewerFlow.clientHeight - 6);
+        }
+
         function updateButtons() {
-            prevBtn.disabled = currentSectionIndex <= 0 && currentMode === "flow";
-            nextBtn.disabled = currentSectionIndex >= spineItems.length - 1 && currentMode === "flow";
+            if (currentMode === "flow") {
+                prevBtn.disabled = isFlowAtTop() && currentSectionIndex <= 0;
+                nextBtn.disabled = isFlowAtBottom() && currentSectionIndex >= spineItems.length - 1;
+                return;
+            }
+
+            prevBtn.disabled = false;
+            nextBtn.disabled = false;
         }
 
         function updatePageInfo() {
@@ -993,10 +1007,11 @@
         }
 
         async function flowPagePrev() {
-            const step = Math.max(220, Math.floor(viewerFlow.clientHeight * 0.88));
+            const step = Math.max(220, Math.floor(viewerFlow.clientHeight * 0.9));
 
             if (viewerFlow.scrollTop > 6) {
                 viewerFlow.scrollBy({ top: -step, behavior: "smooth" });
+                setTimeout(updateButtons, 220);
                 return;
             }
 
@@ -1005,16 +1020,18 @@
 
             await renderSection(prevSection.href, "flow");
             requestAnimationFrame(() => {
-                viewerFlow.scrollTop = viewerFlow.scrollHeight;
+                viewerFlow.scrollTop = Math.max(0, viewerFlow.scrollHeight - viewerFlow.clientHeight);
+                updateButtons();
             });
         }
 
         async function flowPageNext() {
-            const step = Math.max(220, Math.floor(viewerFlow.clientHeight * 0.88));
+            const step = Math.max(220, Math.floor(viewerFlow.clientHeight * 0.9));
             const maxScrollTop = Math.max(0, viewerFlow.scrollHeight - viewerFlow.clientHeight);
 
             if (viewerFlow.scrollTop < maxScrollTop - 6) {
                 viewerFlow.scrollBy({ top: step, behavior: "smooth" });
+                setTimeout(updateButtons, 220);
                 return;
             }
 
@@ -1024,6 +1041,7 @@
             await renderSection(nextSection.href, "flow");
             requestAnimationFrame(() => {
                 viewerFlow.scrollTop = 0;
+                updateButtons();
             });
         }
 
@@ -1072,9 +1090,7 @@
                     if (!anchor) return;
 
                     const raw = anchor.getAttribute("href") || "";
-                    if (isExternalHref(raw)) {
-                        return;
-                    }
+                    if (isExternalHref(raw)) return;
 
                     e.preventDefault();
 
@@ -1238,8 +1254,9 @@
             await withNavLock(async () => {
                 clearError();
 
-                if (currentMode === "flow" && isMobileLike()) {
+                if (currentMode === "flow") {
                     await flowPagePrev();
+                    updateButtons();
                     return;
                 }
 
@@ -1261,8 +1278,9 @@
             await withNavLock(async () => {
                 clearError();
 
-                if (currentMode === "flow" && isMobileLike()) {
+                if (currentMode === "flow") {
                     await flowPageNext();
+                    updateButtons();
                     return;
                 }
 
@@ -1297,6 +1315,12 @@
 
             prevBtn.addEventListener("click", prevAction);
             nextBtn.addEventListener("click", nextAction);
+
+            viewerFlow.addEventListener("scroll", () => {
+                if (currentMode === "flow") {
+                    updateButtons();
+                }
+            }, { passive: true });
 
             window.addEventListener("keydown", async (e) => {
                 if (e.key === "ArrowLeft" || e.key === "PageUp") {
