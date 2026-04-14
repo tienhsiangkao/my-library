@@ -674,6 +674,7 @@
         let rendition = null;
         let spineItems = [];
         let tocEntries = [];
+        let spineHrefIndex = new Map();
 
         let currentMode = "flow";
         let currentHref = "";
@@ -687,18 +688,90 @@
             return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
         }
 
+        function safeDecode(value) {
+            let out = String(value || "");
+            for (let i = 0; i < 3; i++) {
+                try {
+                    const dec = decodeURIComponent(out);
+                    if (dec === out) break;
+                    out = dec;
+                } catch {
+                    break;
+                }
+            }
+            return out;
+        }
+
+        function stripHashAndQuery(value) {
+            return String(value || "").split("#")[0].split("?")[0];
+        }
+
         function normalizeHref(href) {
-            const raw = String(href || "").trim();
+            let raw = String(href || "").trim();
             if (!raw) return "";
             if (raw.startsWith("epubcfi(")) return raw;
-            const noHash = raw.split("#")[0];
-            return noHash.replace(/^(\.\/)+/, "");
+
+            try {
+                if (/^[a-z]+:\/\//i.test(raw)) {
+                    const u = new URL(raw);
+                    raw = (u.pathname || "") + (u.hash || "");
+                }
+            } catch {}
+
+            raw = raw.replace(/\\/g, "/");
+            raw = raw.replace(/^(\.\/)+/, "");
+            raw = raw.replace(/^\/+/, "");
+            raw = safeDecode(raw);
+
+            const noHash = stripHashAndQuery(raw);
+            return noHash.replace(/^(\.\/)+/, "").replace(/^\/+/, "");
         }
 
         function getFragment(href) {
             const raw = String(href || "");
             const idx = raw.indexOf("#");
             return idx >= 0 ? raw.slice(idx + 1) : "";
+        }
+
+        function basenamePath(path) {
+            const clean = normalizeHref(path);
+            if (!clean) return "";
+            const parts = clean.split("/");
+            return parts[parts.length - 1] || clean;
+        }
+
+        function hrefCandidates(href) {
+            const clean = normalizeHref(href);
+            if (!clean) return [];
+
+            const out = new Set();
+            out.add(clean);
+            out.add(safeDecode(clean));
+            out.add(basenamePath(clean));
+
+            ["OEBPS/", "OPS/", "EPUB/", "epub/"].forEach(prefix => {
+                if (clean.startsWith(prefix)) out.add(clean.slice(prefix.length));
+            });
+
+            const lowered = clean.toLowerCase();
+            ["xhtml/", "text/", "html/"].forEach(seg => {
+                const idx = lowered.lastIndexOf(seg);
+                if (idx >= 0) out.add(clean.slice(idx));
+            });
+
+            return Array.from(out).filter(Boolean);
+        }
+
+        function indexSpineHrefs() {
+            spineHrefIndex = new Map();
+
+            spineItems.forEach(item => {
+                hrefCandidates(item.href).forEach(key => {
+                    if (!spineHrefIndex.has(key)) {
+                        spineHrefIndex.set(key, item);
+                    }
+                });
+            });
         }
 
         function isExternalHref(href) {
@@ -866,7 +939,6 @@
             }
 
             btn.addEventListener("click", runNavigate);
-
             btn.addEventListener("touchend", runNavigate, { passive: false });
 
             btn.addEventListener("keydown", async (e) => {
@@ -906,16 +978,26 @@
         }
 
         function getSectionByHref(href) {
-            const clean = normalizeHref(href);
-            if (!clean) return null;
+            const raw = String(href || "").trim();
+            if (!raw) return null;
 
-            let section = null;
+            if (raw.startsWith("epubcfi(")) {
+                try {
+                    const direct = book.spine.get(raw);
+                    if (direct) return direct;
+                } catch {}
+            }
+
+            for (const key of hrefCandidates(raw)) {
+                if (spineHrefIndex.has(key)) return spineHrefIndex.get(key);
+            }
+
             try {
-                section = book.spine.get(clean);
+                const direct = book.spine.get(normalizeHref(raw));
+                if (direct) return direct;
             } catch {}
 
-            if (section) return section;
-            return spineItems.find(item => normalizeHref(item.href) === clean) || null;
+            return null;
         }
 
         function getSectionByIndex(index) {
@@ -1015,27 +1097,70 @@
         }
 
         function resolveRelativeHref(baseHref, href) {
-            const base = normalizeHref(baseHref);
-            const baseDir = base && base.includes("/") ? base.slice(0, base.lastIndexOf("/") + 1) : "";
+            const raw = String(href || "").trim();
+            if (!raw) {
+                return { displayHref: "", cleanHref: "", fragment: "" };
+            }
 
-            try {
-                const url = new URL(String(href || ""), `https://epub.local/${baseDir}`);
-                const cleanHref = url.pathname.replace(/^\/+/, "");
-                const fragment = url.hash.replace(/^#/, "");
+            if (raw.startsWith("#")) {
+                const cleanBase = normalizeHref(baseHref);
+                const fragment = raw.slice(1);
                 return {
-                    displayHref: fragment ? `${cleanHref}#${fragment}` : cleanHref,
-                    cleanHref,
+                    displayHref: fragment ? `${cleanBase}#${fragment}` : cleanBase,
+                    cleanHref: cleanBase,
                     fragment
                 };
-            } catch {
-                const raw = String(href || "");
-                const parts = raw.split("#");
-                return {
-                    displayHref: raw,
-                    cleanHref: normalizeHref(parts[0]),
-                    fragment: parts[1] || ""
-                };
             }
+
+            let baseDir = normalizeHref(baseHref);
+            baseDir = baseDir && baseDir.includes("/") ? baseDir.slice(0, baseDir.lastIndexOf("/") + 1) : "";
+
+            let pathPart = raw;
+            let fragment = "";
+
+            const hashIndex = raw.indexOf("#");
+            if (hashIndex >= 0) {
+                pathPart = raw.slice(0, hashIndex);
+                fragment = raw.slice(hashIndex + 1);
+            }
+
+            let resolvedPath = pathPart;
+            try {
+                const url = new URL(pathPart || "", `https://epub.local/${baseDir}`);
+                resolvedPath = url.pathname.replace(/^\/+/, "");
+            } catch {
+                resolvedPath = pathPart.replace(/^\/+/, "");
+            }
+
+            let matchedSection = null;
+            for (const key of hrefCandidates(resolvedPath)) {
+                if (spineHrefIndex.has(key)) {
+                    matchedSection = spineHrefIndex.get(key);
+                    break;
+                }
+            }
+
+            const cleanHref = matchedSection ? normalizeHref(matchedSection.href) : normalizeHref(resolvedPath);
+
+            return {
+                displayHref: fragment ? `${cleanHref}#${fragment}` : cleanHref,
+                cleanHref,
+                fragment
+            };
+        }
+
+        async function navigateInternalBookHref(rawHref, baseHref, preferredMode = currentMode) {
+            if (!rawHref) return;
+
+            if (isExternalHref(rawHref)) {
+                window.open(rawHref, "_blank", "noopener,noreferrer");
+                return;
+            }
+
+            const resolved = resolveRelativeHref(baseHref || currentHref, rawHref);
+            if (!resolved.cleanHref) return;
+
+            await renderSection(resolved.displayHref, preferredMode);
         }
 
         function scrollToFragmentInFlow(fragment) {
@@ -1124,14 +1249,14 @@
 
                 a.addEventListener("click", async (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
 
                     if (raw.startsWith("#")) {
                         scrollToFragmentInFlow(raw.slice(1));
                         return;
                     }
 
-                    const resolved = resolveRelativeHref(currentHref, raw);
-                    await renderSection(resolved.displayHref);
+                    await navigateInternalBookHref(raw, currentHref, "flow");
                 });
             });
         }
@@ -1300,25 +1425,37 @@
 
             rendition.hooks.content.register((contents) => {
                 const doc = contents.document;
+                let handledAt = 0;
 
-                doc.addEventListener("click", async (e) => {
+                async function handleInternalLink(e) {
                     const anchor = closestAnchor(e.target);
                     if (!anchor) return;
 
                     const raw = anchor.getAttribute("href") || "";
-                    if (isExternalHref(raw)) return;
+                    if (!raw || isExternalHref(raw)) return;
+
+                    const now = Date.now();
+                    if (now - handledAt < 400) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                    }
+                    handledAt = now;
 
                     e.preventDefault();
+                    e.stopPropagation();
 
                     if (raw.startsWith("#")) {
                         const base = normalizeHref(contents.section.href);
-                        await renderSection(base + raw, "rendition");
+                        await renderSection(`${base}${raw}`, "rendition");
                         return;
                     }
 
-                    const resolved = resolveRelativeHref(contents.section.href, raw);
-                    await renderSection(resolved.displayHref, "rendition");
-                }, true);
+                    await navigateInternalBookHref(raw, contents.section.href, "rendition");
+                }
+
+                doc.addEventListener("click", handleInternalLink, true);
+                doc.addEventListener("touchend", handleInternalLink, { capture: true, passive: false });
 
                 setTimeout(stabilizeRenditionLayout, 40);
             });
@@ -1570,6 +1707,7 @@
                 await book.ready;
 
                 spineItems = (book.spine && (book.spine.spineItems || book.spine.items)) || [];
+                indexSpineHrefs();
 
                 const nav = await book.loaded.navigation;
                 tocEntries = flattenToc(nav && nav.toc ? nav.toc : []);
