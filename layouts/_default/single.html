@@ -17,6 +17,7 @@
             --text: #e8ecf3;
             --muted: #9aa4b2;
             --accent: #4f8cff;
+            --cff;
             --border: rgba(255,255,255,0.08);
             --shadow: 0 12px 36px rgba(0,0,0,0.32);
             --paper: #f8f5ef;
@@ -434,7 +435,8 @@
         }
 
         .tap-zone {
-            display: none;
+            display: none !important;
+            pointer-events: none !important;
         }
 
         @media (max-width: 1180px) {
@@ -480,12 +482,14 @@
             }
 
             #topbar {
+                min-height: 50px;
+                height: 50px;
                 padding-left: max(10px, env(safe-area-inset-left));
                 padding-right: max(10px, env(safe-area-inset-right));
             }
 
             #topbar-title {
-                font-size: 14px;
+                font-size: 13px;
             }
 
             #viewer-wrap {
@@ -520,41 +524,10 @@
                 font-size: 12px;
             }
 
-            .tap-zone {
-                display: block;
-                position: fixed;
-                top: var(--topbar-height);
-                bottom: var(--controls-height);
-                z-index: 20;
-                background: transparent;
-            }
-
-            #tapLeft {
-                left: 0;
-                width: 32vw;
-            }
-
-            #tapCenter {
-                left: 32vw;
-                width: 36vw;
-            }
-
-            #tapRight {
-                right: 0;
-                width: 32vw;
-            }
-
             body.chrome-hidden #topbar,
             body.chrome-hidden .controls {
                 opacity: 0;
                 pointer-events: none;
-            }
-
-            body.chrome-hidden #tapLeft,
-            body.chrome-hidden #tapCenter,
-            body.chrome-hidden #tapRight {
-                top: 0;
-                bottom: 0;
             }
 
             body.chrome-hidden #message {
@@ -562,29 +535,14 @@
             }
         }
 
-        @media (max-width: 640px) {
-            #mode-switcher {
-                gap: 2px;
-                padding: 2px;
-            }
-
-            .mode-btn {
-                font-size: 11px;
-                padding: 7px 8px;
-            }
-
+        @media (max-width: 700px) {
             .controls {
-                display: grid;
-                grid-template-columns: auto 1fr auto;
-                align-items: center;
+                display: none;
             }
 
-            .controls-left {
-                justify-content: flex-start;
-            }
-
-            .controls-right {
-                justify-content: flex-end;
+            body.chrome-hidden #topbar {
+                opacity: 0;
+                pointer-events: none;
             }
         }
 
@@ -707,7 +665,6 @@
         const DEFAULT_MODE = `{{ .Params.reader_mode | default "flow" }}`;
 
         const bodyEl = document.body;
-        const sidebarEl = document.getElementById("sidebar");
         const sidebarOverlayEl = document.getElementById("sidebar-overlay");
         const closeSidebarBtn = document.getElementById("closeSidebarBtn");
         const menuBtn = document.getElementById("menuBtn");
@@ -724,10 +681,6 @@
         const nextBtn = document.getElementById("nextBtn");
         const pageInfo = document.getElementById("page-info");
         const messageEl = document.getElementById("message");
-
-        const tapLeft = document.getElementById("tapLeft");
-        const tapCenter = document.getElementById("tapCenter");
-        const tapRight = document.getElementById("tapRight");
 
         let book = null;
         let rendition = null;
@@ -762,10 +715,6 @@
 
         function isExternalHref(href) {
             return /^(https?:|mailto:|tel:|javascript:)/i.test(String(href || ""));
-        }
-
-        function openSidebar() {
-            bodyEl.classList.add("sidebar-open");
         }
 
         function closeSidebar() {
@@ -1008,6 +957,30 @@
             });
         }
 
+        function installFlowTapBehavior() {
+            viewerFlow.addEventListener("click", async (e) => {
+                if (!isMobileLike()) return;
+
+                const anchor = e.target.closest("a[href]");
+                if (anchor) {
+                    return;
+                }
+
+                const x = e.clientX / window.innerWidth;
+
+                if (x < 0.32) {
+                    e.preventDefault();
+                    await prevAction();
+                } else if (x > 0.68) {
+                    e.preventDefault();
+                    await nextAction();
+                } else {
+                    e.preventDefault();
+                    toggleChrome();
+                }
+            });
+        }
+
         async function ensureRendition() {
             if (rendition) return rendition;
 
@@ -1033,6 +1006,45 @@
                 img: {
                     "max-width": "100%"
                 }
+            });
+
+            rendition.hooks.content.register((contents) => {
+                contents.document.addEventListener("click", async (e) => {
+                    if (!isMobileLike()) return;
+
+                    const anchor = e.target.closest("a[href]");
+                    if (anchor) {
+                        const raw = anchor.getAttribute("href") || "";
+
+                        if (isExternalHref(raw)) {
+                            return;
+                        }
+
+                        e.preventDefault();
+
+                        if (raw.startsWith("#")) {
+                            const base = normalizeHref(contents.section.href);
+                            await renderSection(base + raw, "rendition");
+                            return;
+                        }
+
+                        const resolved = resolveRelativeHref(contents.section.href, raw);
+                        await renderSection(resolved.displayHref, "rendition");
+                        return;
+                    }
+
+                    const x = e.clientX / window.innerWidth;
+
+                    e.preventDefault();
+
+                    if (x < 0.32) {
+                        await prevAction();
+                    } else if (x > 0.68) {
+                        await nextAction();
+                    } else {
+                        toggleChrome();
+                    }
+                }, true);
             });
 
             rendition.on("relocated", (location) => {
@@ -1223,21 +1235,6 @@
             prevBtn.addEventListener("click", prevAction);
             nextBtn.addEventListener("click", nextAction);
 
-            tapLeft.addEventListener("click", async () => {
-                if (!isMobileLike()) return;
-                await prevAction();
-            });
-
-            tapRight.addEventListener("click", async () => {
-                if (!isMobileLike()) return;
-                await nextAction();
-            });
-
-            tapCenter.addEventListener("click", () => {
-                if (!isMobileLike()) return;
-                toggleChrome();
-            });
-
             window.addEventListener("keydown", async (e) => {
                 if (e.key === "ArrowLeft" || e.key === "PageUp") {
                     e.preventDefault();
@@ -1267,6 +1264,7 @@
 
         async function start() {
             installUi();
+            installFlowTapBehavior();
 
             try {
                 book = ePub(EPUB_URL);
