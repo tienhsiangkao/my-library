@@ -675,6 +675,7 @@
         let spineItems = [];
         let tocEntries = [];
         let spineHrefIndex = new Map();
+        let tocBaseHref = "";
 
         let currentMode = "flow";
         let currentHref = "";
@@ -772,6 +773,51 @@
                     }
                 });
             });
+        }
+
+        function guessTocBaseHref() {
+            try {
+                const packaging = book && book.packaging ? book.packaging : {};
+                let navPath = packaging.navPath || packaging.navpath || "";
+
+                if (!navPath && packaging.manifest) {
+                    const manifestValues = Array.isArray(packaging.manifest)
+                        ? packaging.manifest
+                        : Object.values(packaging.manifest);
+
+                    const navItem = manifestValues.find(item => {
+                        const props = Array.isArray(item && item.properties)
+                            ? item.properties.join(" ")
+                            : String(item && item.properties || "");
+                        return /\bnav\b/i.test(props);
+                    });
+
+                    navPath = navItem && navItem.href ? navItem.href : "";
+                }
+
+                if (navPath) return normalizeHref(navPath);
+            } catch {}
+
+            const firstToc = tocEntries.find(item => item.href && String(item.href).trim());
+            if (firstToc && String(firstToc.href).includes("/")) {
+                return normalizeHref(firstToc.href);
+            }
+
+            const normalized = spineItems
+                .map(item => normalizeHref(item && item.href))
+                .filter(Boolean);
+
+            if (!normalized.length) return "";
+
+            const dirs = normalized.map(href => {
+                const idx = href.lastIndexOf("/");
+                return idx >= 0 ? href.slice(0, idx + 1) : "";
+            });
+
+            const firstDir = dirs[0];
+            if (dirs.every(dir => dir === firstDir)) return firstDir;
+
+            return normalized[0];
         }
 
         function isExternalHref(href) {
@@ -906,11 +952,90 @@
             return out;
         }
 
+        function resolveRelativeHref(baseHref, href) {
+            const raw = String(href || "").trim();
+            if (!raw) {
+                return { displayHref: "", cleanHref: "", fragment: "" };
+            }
+
+            if (raw.startsWith("#")) {
+                const cleanBase = normalizeHref(baseHref);
+                const fragment = raw.slice(1);
+                return {
+                    displayHref: fragment ? `${cleanBase}#${fragment}` : cleanBase,
+                    cleanHref: cleanBase,
+                    fragment
+                };
+            }
+
+            let baseDir = normalizeHref(baseHref);
+            baseDir = baseDir && baseDir.includes("/") ? baseDir.slice(0, baseDir.lastIndexOf("/") + 1) : "";
+
+            let pathPart = raw;
+            let fragment = "";
+
+            const hashIndex = raw.indexOf("#");
+            if (hashIndex >= 0) {
+                pathPart = raw.slice(0, hashIndex);
+                fragment = raw.slice(hashIndex + 1);
+            }
+
+            let resolvedPath = pathPart;
+            try {
+                const url = new URL(pathPart || "", `https://epub.local/${baseDir}`);
+                resolvedPath = url.pathname.replace(/^\/+/, "");
+            } catch {
+                resolvedPath = pathPart.replace(/^\/+/, "");
+            }
+
+            let matchedSection = null;
+            for (const key of hrefCandidates(resolvedPath)) {
+                if (spineHrefIndex.has(key)) {
+                    matchedSection = spineHrefIndex.get(key);
+                    break;
+                }
+            }
+
+            const cleanHref = matchedSection ? normalizeHref(matchedSection.href) : normalizeHref(resolvedPath);
+
+            return {
+                displayHref: fragment ? `${cleanHref}#${fragment}` : cleanHref,
+                cleanHref,
+                fragment
+            };
+        }
+
+        function resolveTocHref(href) {
+            const base = tocBaseHref || (spineItems[0] ? spineItems[0].href : "") || "";
+            return resolveRelativeHref(base, href);
+        }
+
+        async function navigateInternalBookHref(rawHref, baseHref, preferredMode = currentMode) {
+            if (!rawHref) return;
+
+            if (isExternalHref(rawHref)) {
+                window.open(rawHref, "_blank", "noopener,noreferrer");
+                return;
+            }
+
+            const resolved = resolveRelativeHref(baseHref || currentHref, rawHref);
+            if (!resolved.cleanHref) return;
+
+            await renderSection(resolved.displayHref, preferredMode);
+        }
+
         async function goToTocHref(href) {
             if (!href) return;
+
+            const resolved = resolveTocHref(href);
+            if (!resolved.cleanHref) {
+                showError("TOC link could not be resolved.");
+                return;
+            }
+
             setChromeVisible(true);
             clearError();
-            await renderSection(href, currentMode);
+            await renderSection(resolved.displayHref, currentMode);
             closeSidebar();
             setTimeout(stabilizeRenditionLayout, 80);
             setTimeout(stabilizeRenditionLayout, 220);
@@ -972,7 +1097,9 @@
         function markActiveToc(href) {
             const clean = normalizeHref(href);
             tocList.querySelectorAll(".toc-item").forEach(el => {
-                const hit = normalizeHref(el.dataset.href || "") === clean;
+                const raw = el.dataset.href || "";
+                const resolved = resolveTocHref(raw);
+                const hit = normalizeHref(resolved.cleanHref || "") === clean;
                 el.classList.toggle("active", hit);
             });
         }
@@ -1091,76 +1218,12 @@
 
             const total = spineItems.length || 0;
             const chapter = total ? `${currentSectionIndex + 1}/${total}` : "0/0";
-            const hit = tocEntries.find(item => normalizeHref(item.href) === normalizeHref(currentHref));
+            const hit = tocEntries.find(item => {
+                const resolved = resolveTocHref(item.href || "");
+                return normalizeHref(resolved.cleanHref || "") === normalizeHref(currentHref);
+            });
             const tocLabel = hit ? hit.label : "";
             pageInfo.textContent = tocLabel ? `${modeText} · ${chapter} · ${tocLabel}` : `${modeText} · ${chapter}`;
-        }
-
-        function resolveRelativeHref(baseHref, href) {
-            const raw = String(href || "").trim();
-            if (!raw) {
-                return { displayHref: "", cleanHref: "", fragment: "" };
-            }
-
-            if (raw.startsWith("#")) {
-                const cleanBase = normalizeHref(baseHref);
-                const fragment = raw.slice(1);
-                return {
-                    displayHref: fragment ? `${cleanBase}#${fragment}` : cleanBase,
-                    cleanHref: cleanBase,
-                    fragment
-                };
-            }
-
-            let baseDir = normalizeHref(baseHref);
-            baseDir = baseDir && baseDir.includes("/") ? baseDir.slice(0, baseDir.lastIndexOf("/") + 1) : "";
-
-            let pathPart = raw;
-            let fragment = "";
-
-            const hashIndex = raw.indexOf("#");
-            if (hashIndex >= 0) {
-                pathPart = raw.slice(0, hashIndex);
-                fragment = raw.slice(hashIndex + 1);
-            }
-
-            let resolvedPath = pathPart;
-            try {
-                const url = new URL(pathPart || "", `https://epub.local/${baseDir}`);
-                resolvedPath = url.pathname.replace(/^\/+/, "");
-            } catch {
-                resolvedPath = pathPart.replace(/^\/+/, "");
-            }
-
-            let matchedSection = null;
-            for (const key of hrefCandidates(resolvedPath)) {
-                if (spineHrefIndex.has(key)) {
-                    matchedSection = spineHrefIndex.get(key);
-                    break;
-                }
-            }
-
-            const cleanHref = matchedSection ? normalizeHref(matchedSection.href) : normalizeHref(resolvedPath);
-
-            return {
-                displayHref: fragment ? `${cleanHref}#${fragment}` : cleanHref,
-                cleanHref,
-                fragment
-            };
-        }
-
-        async function navigateInternalBookHref(rawHref, baseHref, preferredMode = currentMode) {
-            if (!rawHref) return;
-
-            if (isExternalHref(rawHref)) {
-                window.open(rawHref, "_blank", "noopener,noreferrer");
-                return;
-            }
-
-            const resolved = resolveRelativeHref(baseHref || currentHref, rawHref);
-            if (!resolved.cleanHref) return;
-
-            await renderSection(resolved.displayHref, preferredMode);
         }
 
         function scrollToFragmentInFlow(fragment) {
@@ -1711,6 +1774,7 @@
 
                 const nav = await book.loaded.navigation;
                 tocEntries = flattenToc(nav && nav.toc ? nav.toc : []);
+                tocBaseHref = guessTocBaseHref();
                 buildToc();
 
                 if (!spineItems.length) {
