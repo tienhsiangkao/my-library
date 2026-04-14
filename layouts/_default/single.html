@@ -203,7 +203,8 @@
             text-align: center;
         }
 
-        #mode-switcher {
+        #mode-switcher,
+        #spread-switcher {
             display: inline-flex;
             align-items: center;
             gap: 4px;
@@ -213,7 +214,8 @@
             border: 1px solid var(--border);
         }
 
-        .mode-btn {
+        .mode-btn,
+        .spread-btn {
             padding: 8px 12px;
             border-radius: 10px;
             background: transparent;
@@ -222,7 +224,8 @@
             font-weight: 700;
         }
 
-        .mode-btn.active {
+        .mode-btn.active,
+        .spread-btn.active {
             background: rgba(79,140,255,0.18);
             color: #eef4ff;
         }
@@ -268,6 +271,10 @@
             padding: 44px 52px;
             line-height: 1.9;
             font-size: 19px;
+        }
+
+        #viewer-flow .flow-content {
+            width: 100%;
         }
 
         #viewer-rendition {
@@ -345,9 +352,15 @@
         #viewer-flow video,
         #viewer-flow canvas,
         #viewer-flow table,
-        #viewer-flow iframe {
+        #viewer-flow iframe,
+        #viewer-flow image {
             max-width: 100% !important;
             height: auto !important;
+        }
+
+        #viewer-flow svg {
+            display: block;
+            margin: 0 auto;
         }
 
         #viewer-flow pre,
@@ -432,6 +445,12 @@
             #viewer-flow {
                 padding: 34px 30px;
                 font-size: 17px;
+            }
+        }
+
+        @media (max-width: 1100px) {
+            #spread-switcher {
+                display: none;
             }
         }
 
@@ -572,6 +591,10 @@
                 <div id="topbar-title">{{ .Title }}</div>
 
                 <div id="topbar-right">
+                    <div id="spread-switcher" title="Rendition spread mode">
+                        <button id="singlePageBtn" class="spread-btn" type="button">1P</button>
+                        <button id="doublePageBtn" class="spread-btn" type="button">2P</button>
+                    </div>
                     <div id="mode-switcher">
                         <button id="flowBtn" class="mode-btn" type="button">Flow</button>
                         <button id="renditionBtn" class="mode-btn" type="button">Rendition</button>
@@ -614,6 +637,7 @@
     <script>
         const EPUB_URL = `{{ (printf "books/%s" .Params.epub_file) | relURL }}`;
         const MODE_STORAGE_KEY = "library_reader_mode";
+        const SPREAD_STORAGE_KEY = "library_reader_spread";
         const DEFAULT_MODE = `{{ .Params.reader_mode | default "flow" }}`;
 
         const MOBILE_BREAKPOINT = 900;
@@ -634,6 +658,9 @@
 
         const flowBtn = document.getElementById("flowBtn");
         const renditionBtn = document.getElementById("renditionBtn");
+        const singlePageBtn = document.getElementById("singlePageBtn");
+        const doublePageBtn = document.getElementById("doublePageBtn");
+
         const prevBtn = document.getElementById("prevBtn");
         const nextBtn = document.getElementById("nextBtn");
         const pageInfo = document.getElementById("page-info");
@@ -653,6 +680,7 @@
         let currentSectionIndex = 0;
         let chromeVisible = true;
         let navBusy = false;
+        let spreadMode = "single";
 
         function isMobileLike() {
             return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
@@ -722,6 +750,50 @@
             try {
                 localStorage.setItem(MODE_STORAGE_KEY, mode);
             } catch {}
+        }
+
+        function getStoredSpreadMode() {
+            try {
+                const value = localStorage.getItem(SPREAD_STORAGE_KEY);
+                return value === "double" ? "double" : "single";
+            } catch {
+                return "single";
+            }
+        }
+
+        function storeSpreadMode(mode) {
+            try {
+                localStorage.setItem(SPREAD_STORAGE_KEY, mode);
+            } catch {}
+        }
+
+        function updateSpreadButtons() {
+            singlePageBtn.classList.toggle("active", spreadMode === "single");
+            doublePageBtn.classList.toggle("active", spreadMode === "double");
+        }
+
+        function applyRenditionSpread() {
+            if (!rendition) return;
+
+            const useDouble = spreadMode === "double" && !isMobileLike();
+
+            try {
+                rendition.spread(useDouble ? "auto" : "none");
+            } catch {}
+
+            const rect = viewerRendition.getBoundingClientRect();
+            if (rect.width && rect.height) {
+                try {
+                    rendition.resize(rect.width, rect.height);
+                } catch {}
+            }
+        }
+
+        function setSpreadMode(mode) {
+            spreadMode = mode === "double" ? "double" : "single";
+            storeSpreadMode(spreadMode);
+            updateSpreadButtons();
+            applyRenditionSpread();
         }
 
         function effectiveMode() {
@@ -842,23 +914,29 @@
             });
         }
 
+        function locationToken(loc) {
+            if (!loc || !loc.start) return "";
+            return `${loc.start.href || ""}|${loc.start.cfi || ""}`;
+        }
+
         function stabilizeRenditionLayout() {
             if (!rendition || !viewerRendition) return;
+
+            applyRenditionSpread();
 
             const rect = viewerRendition.getBoundingClientRect();
             if (!rect.width || !rect.height) return;
 
             try {
-                rendition.spread("none");
                 rendition.resize(rect.width, rect.height);
             } catch {}
 
             setTimeout(() => {
                 if (!rendition || !viewerRendition) return;
+                applyRenditionSpread();
                 const rect2 = viewerRendition.getBoundingClientRect();
                 if (!rect2.width || !rect2.height) return;
                 try {
-                    rendition.spread("none");
                     rendition.resize(rect2.width, rect2.height);
                 } catch {}
             }, 120);
@@ -883,7 +961,10 @@
         }
 
         function updatePageInfo() {
-            const modeText = currentMode === "rendition" ? "Paginated" : "Flow";
+            const modeText = currentMode === "rendition"
+                ? (spreadMode === "double" && !isMobileLike() ? "Rendition 2P" : "Rendition 1P")
+                : "Flow";
+
             const total = spineItems.length || 0;
             const chapter = total ? `${currentSectionIndex + 1}/${total}` : "0/0";
             const hit = tocEntries.find(item => normalizeHref(item.href) === normalizeHref(currentHref));
@@ -931,6 +1012,43 @@
             }
         }
 
+        function appendHeadAssetsForFlow(parsed, section) {
+            const headNodes = Array.from(parsed.head ? parsed.head.children : []);
+            headNodes.forEach(node => {
+                const tag = node.tagName ? node.tagName.toLowerCase() : "";
+                if (tag !== "style" && tag !== "link") return;
+
+                const clone = node.cloneNode(true);
+
+                if (tag === "link") {
+                    const href = clone.getAttribute("href");
+                    if (!href) return;
+                    try {
+                        clone.setAttribute("href", section.resolve(href));
+                    } catch {}
+                }
+
+                viewerFlow.appendChild(clone);
+            });
+        }
+
+        function rewriteSvgLinks(section, root) {
+            root.querySelectorAll("image").forEach(el => {
+                let raw = el.getAttribute("href");
+                if (!raw) raw = el.getAttribute("xlink:href");
+                if (!raw || isExternalHref(raw)) return;
+
+                let resolved = raw;
+                try {
+                    resolved = section.resolve(raw);
+                } catch {}
+
+                try { el.setAttribute("href", resolved); } catch {}
+                try { el.setAttribute("xlink:href", resolved); } catch {}
+                try { el.setAttributeNS("http://www.w3.org/1999/xlink", "href", resolved); } catch {}
+            });
+        }
+
         function rewriteFlowResources(section) {
             viewerFlow.querySelectorAll("[src]").forEach(el => {
                 const src = el.getAttribute("src");
@@ -949,6 +1067,8 @@
                 if (!href || isExternalHref(href)) return;
                 try { el.setAttribute("href", section.resolve(href)); } catch {}
             });
+
+            rewriteSvgLinks(section, viewerFlow);
 
             viewerFlow.querySelectorAll("a[href]").forEach(a => {
                 const raw = a.getAttribute("href") || "";
@@ -1049,6 +1169,7 @@
 
             const before = rendition.currentLocation ? rendition.currentLocation() : null;
             const beforeIndex = spineIndexFromLocation(before);
+            const beforeToken = locationToken(before);
             const beforeTarget =
                 (before && before.start && (before.start.cfi || before.start.href)) ||
                 currentDisplayHref ||
@@ -1064,7 +1185,16 @@
             } catch {}
 
             const after = await waitForNextRelocation(700);
+            const afterToken = locationToken(after);
             const afterIndex = spineIndexFromLocation(after);
+
+            if (!afterToken || afterToken === beforeToken) {
+                const adjacent = getSectionByIndex(currentSectionIndex + (direction === "next" ? 1 : -1));
+                if (adjacent) {
+                    await renderSection(adjacent.href, "rendition");
+                }
+                return;
+            }
 
             if (!isMobileLike()) return;
 
@@ -1104,8 +1234,8 @@
             rendition = book.renderTo("viewer-rendition", {
                 width: "100%",
                 height: "100%",
-                spread: "none",
-                minSpreadWidth: 99999,
+                spread: spreadMode === "double" && !isMobileLike() ? "auto" : "none",
+                minSpreadWidth: 920,
                 manager: "default",
                 flow: "paginated",
                 allowScriptedContent: false
@@ -1189,7 +1319,7 @@
                 markup = await section.render();
             } catch {
                 if (section.document && section.document.body) {
-                    markup = section.document.body.innerHTML;
+                    markup = section.document.documentElement.outerHTML;
                 } else {
                     throw new Error("Failed to render section in flow mode.");
                 }
@@ -1200,7 +1330,14 @@
                 throw new Error("Failed to parse section HTML.");
             }
 
-            viewerFlow.innerHTML = parsed.body.innerHTML;
+            viewerFlow.innerHTML = "";
+            appendHeadAssetsForFlow(parsed, section);
+
+            const content = document.createElement("div");
+            content.className = "flow-content";
+            content.innerHTML = parsed.body.innerHTML;
+            viewerFlow.appendChild(content);
+
             rewriteFlowResources(section);
             viewerFlow.scrollTop = 0;
 
@@ -1327,6 +1464,9 @@
                 if (href) await renderSection(href, "rendition");
             });
 
+            singlePageBtn.addEventListener("click", () => setSpreadMode("single"));
+            doublePageBtn.addEventListener("click", () => setSpreadMode("double"));
+
             prevBtn.addEventListener("click", prevAction);
             nextBtn.addEventListener("click", nextAction);
 
@@ -1379,6 +1519,9 @@
         async function start() {
             installUi();
             installFlowTouchBehavior();
+
+            spreadMode = getStoredSpreadMode();
+            updateSpreadButtons();
 
             try {
                 book = ePub(EPUB_URL);
