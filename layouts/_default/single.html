@@ -17,7 +17,6 @@
             --text: #e8ecf3;
             --muted: #9aa4b2;
             --accent: #4f8cff;
-            --cff;
             --border: rgba(255,255,255,0.08);
             --shadow: 0 12px 36px rgba(0,0,0,0.32);
             --paper: #f8f5ef;
@@ -170,6 +169,7 @@
             backdrop-filter: blur(10px);
             z-index: 30;
             flex-shrink: 0;
+            transition: opacity 0.18s ease;
         }
 
         #topbar-left,
@@ -268,6 +268,8 @@
         #viewer-flow {
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            touch-action: pan-y;
             padding: 44px 52px;
             line-height: 1.9;
             font-size: 19px;
@@ -376,6 +378,7 @@
             backdrop-filter: blur(10px);
             flex-shrink: 0;
             z-index: 30;
+            transition: opacity 0.18s ease;
         }
 
         .controls-left,
@@ -432,11 +435,6 @@
             font-size: 14px;
             line-height: 1.45;
             box-shadow: 0 10px 24px rgba(0,0,0,0.28);
-        }
-
-        .tap-zone {
-            display: none !important;
-            pointer-events: none !important;
         }
 
         @media (max-width: 1180px) {
@@ -509,40 +507,16 @@
             }
 
             .controls {
-                gap: 8px;
-                padding-left: max(8px, env(safe-area-inset-left));
-                padding-right: max(8px, env(safe-area-inset-right));
-            }
-
-            .nav-btn {
-                min-width: 66px;
-                padding: 0 12px;
-                font-size: 13px;
-            }
-
-            #page-info {
-                font-size: 12px;
-            }
-
-            body.chrome-hidden #topbar,
-            body.chrome-hidden .controls {
-                opacity: 0;
-                pointer-events: none;
-            }
-
-            body.chrome-hidden #message {
-                top: 12px;
-            }
-        }
-
-        @media (max-width: 700px) {
-            .controls {
                 display: none;
             }
 
             body.chrome-hidden #topbar {
                 opacity: 0;
                 pointer-events: none;
+            }
+
+            body.chrome-hidden #message {
+                top: 12px;
             }
         }
 
@@ -575,23 +549,6 @@
             #viewer-flow h6 {
                 margin: 1.1em 0 0.65em !important;
                 line-height: 1.3 !important;
-            }
-
-            .controls {
-                gap: 6px;
-                padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
-            }
-
-            .nav-btn {
-                min-width: 58px;
-                min-height: 36px;
-                padding: 0 10px;
-                font-size: 12px;
-                border-radius: 9px;
-            }
-
-            #page-info {
-                font-size: 11px;
             }
         }
     </style>
@@ -652,10 +609,6 @@
             </div>
 
             <div id="message"></div>
-
-            <div id="tapLeft" class="tap-zone"></div>
-            <div id="tapCenter" class="tap-zone"></div>
-            <div id="tapRight" class="tap-zone"></div>
         </main>
     </div>
 
@@ -663,6 +616,12 @@
         const EPUB_URL = `{{ (printf "books/%s" .Params.epub_file) | relURL }}`;
         const MODE_STORAGE_KEY = "library_reader_mode";
         const DEFAULT_MODE = `{{ .Params.reader_mode | default "flow" }}`;
+
+        const MOBILE_BREAKPOINT = 900;
+        const TAP_EDGE_RATIO = 0.32;
+        const TOUCH_MOVE_THRESHOLD = 14;
+        const TAP_MAX_DURATION_MS = 350;
+        const NAV_LOCK_MS = 220;
 
         const bodyEl = document.body;
         const sidebarOverlayEl = document.getElementById("sidebar-overlay");
@@ -692,9 +651,10 @@
         let currentDisplayHref = "";
         let currentSectionIndex = 0;
         let chromeVisible = true;
+        let navBusy = false;
 
         function isMobileLike() {
-            return window.matchMedia("(max-width: 900px)").matches;
+            return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
         }
 
         function normalizeHref(href) {
@@ -715,6 +675,19 @@
 
         function isExternalHref(href) {
             return /^(https?:|mailto:|tel:|javascript:)/i.test(String(href || ""));
+        }
+
+        function closestAnchor(target) {
+            if (!target) return null;
+            const el = target.nodeType === 1 ? target : target.parentElement;
+            return el && el.closest ? el.closest("a[href]") : null;
+        }
+
+        function getTapZone(clientX, width = window.innerWidth) {
+            const ratio = clientX / Math.max(width, 1);
+            if (ratio < TAP_EDGE_RATIO) return "prev";
+            if (ratio > 1 - TAP_EDGE_RATIO) return "next";
+            return "center";
         }
 
         function closeSidebar() {
@@ -957,28 +930,113 @@
             });
         }
 
-        function installFlowTapBehavior() {
-            viewerFlow.addEventListener("click", async (e) => {
+        function attachMobileTapRecognizer(target, options) {
+            let startX = 0;
+            let startY = 0;
+            let startTime = 0;
+            let moved = false;
+            let startedOnAnchor = false;
+
+            target.addEventListener("touchstart", (e) => {
                 if (!isMobileLike()) return;
+                if (!e.touches || e.touches.length !== 1) return;
 
-                const anchor = e.target.closest("a[href]");
-                if (anchor) {
-                    return;
+                const t = e.touches[0];
+                startX = t.clientX;
+                startY = t.clientY;
+                startTime = Date.now();
+                moved = false;
+                startedOnAnchor = !!closestAnchor(e.target);
+            }, { passive: true });
+
+            target.addEventListener("touchmove", (e) => {
+                if (!isMobileLike()) return;
+                if (!e.touches || e.touches.length !== 1) return;
+
+                const t = e.touches[0];
+                if (
+                    Math.abs(t.clientX - startX) > TOUCH_MOVE_THRESHOLD ||
+                    Math.abs(t.clientY - startY) > TOUCH_MOVE_THRESHOLD
+                ) {
+                    moved = true;
                 }
+            }, { passive: true });
 
-                const x = e.clientX / window.innerWidth;
+            target.addEventListener("touchend", async (e) => {
+                if (!isMobileLike()) return;
+                if (startedOnAnchor) return;
+                if (moved) return;
+                if (Date.now() - startTime > TAP_MAX_DURATION_MS) return;
+                if (!e.changedTouches || !e.changedTouches.length) return;
 
-                if (x < 0.32) {
-                    e.preventDefault();
-                    await prevAction();
-                } else if (x > 0.68) {
-                    e.preventDefault();
-                    await nextAction();
+                const t = e.changedTouches[0];
+                const width = typeof options.getWidth === "function" ? options.getWidth() : window.innerWidth;
+                const zone = getTapZone(t.clientX, width);
+
+                if (zone === "prev") {
+                    await options.onPrev();
+                } else if (zone === "next") {
+                    await options.onNext();
                 } else {
-                    e.preventDefault();
-                    toggleChrome();
+                    await options.onCenter();
                 }
+            }, { passive: true });
+        }
+
+        function installFlowTouchBehavior() {
+            attachMobileTapRecognizer(viewerFlow, {
+                getWidth: () => window.innerWidth,
+                onPrev: async () => { await prevAction(); },
+                onNext: async () => { await nextAction(); },
+                onCenter: async () => { toggleChrome(); }
             });
+        }
+
+        async function flowPagePrev() {
+            const step = Math.max(220, Math.floor(viewerFlow.clientHeight * 0.88));
+
+            if (viewerFlow.scrollTop > 6) {
+                viewerFlow.scrollBy({ top: -step, behavior: "smooth" });
+                return;
+            }
+
+            const prevSection = getSectionByIndex(currentSectionIndex - 1);
+            if (!prevSection) return;
+
+            await renderSection(prevSection.href, "flow");
+            requestAnimationFrame(() => {
+                viewerFlow.scrollTop = viewerFlow.scrollHeight;
+            });
+        }
+
+        async function flowPageNext() {
+            const step = Math.max(220, Math.floor(viewerFlow.clientHeight * 0.88));
+            const maxScrollTop = Math.max(0, viewerFlow.scrollHeight - viewerFlow.clientHeight);
+
+            if (viewerFlow.scrollTop < maxScrollTop - 6) {
+                viewerFlow.scrollBy({ top: step, behavior: "smooth" });
+                return;
+            }
+
+            const nextSection = getSectionByIndex(currentSectionIndex + 1);
+            if (!nextSection) return;
+
+            await renderSection(nextSection.href, "flow");
+            requestAnimationFrame(() => {
+                viewerFlow.scrollTop = 0;
+            });
+        }
+
+        async function withNavLock(fn) {
+            if (navBusy) return;
+            navBusy = true;
+            try {
+                await fn();
+            } finally {
+                setTimeout(() => {
+                    navBusy = false;
+                }, NAV_LOCK_MS);
+            }
         }
 
         async function ensureRendition() {
@@ -1010,41 +1068,32 @@
 
             rendition.hooks.content.register((contents) => {
                 contents.document.addEventListener("click", async (e) => {
-                    if (!isMobileLike()) return;
+                    const anchor = closestAnchor(e.target);
+                    if (!anchor) return;
 
-                    const anchor = e.target.closest("a[href]");
-                    if (anchor) {
-                        const raw = anchor.getAttribute("href") || "";
-
-                        if (isExternalHref(raw)) {
-                            return;
-                        }
-
-                        e.preventDefault();
-
-                        if (raw.startsWith("#")) {
-                            const base = normalizeHref(contents.section.href);
-                            await renderSection(base + raw, "rendition");
-                            return;
-                        }
-
-                        const resolved = resolveRelativeHref(contents.section.href, raw);
-                        await renderSection(resolved.displayHref, "rendition");
+                    const raw = anchor.getAttribute("href") || "";
+                    if (isExternalHref(raw)) {
                         return;
                     }
 
-                    const x = e.clientX / window.innerWidth;
-
                     e.preventDefault();
 
-                    if (x < 0.32) {
-                        await prevAction();
-                    } else if (x > 0.68) {
-                        await nextAction();
-                    } else {
-                        toggleChrome();
+                    if (raw.startsWith("#")) {
+                        const base = normalizeHref(contents.section.href);
+                        await renderSection(base + raw, "rendition");
+                        return;
                     }
+
+                    const resolved = resolveRelativeHref(contents.section.href, raw);
+                    await renderSection(resolved.displayHref, "rendition");
                 }, true);
+
+                attachMobileTapRecognizer(contents.document, {
+                    getWidth: () => contents.window.innerWidth,
+                    onPrev: async () => { await prevAction(); },
+                    onNext: async () => { await nextAction(); },
+                    onCenter: async () => { toggleChrome(); }
+                });
             });
 
             rendition.on("relocated", (location) => {
@@ -1186,35 +1235,49 @@
         }
 
         async function prevAction() {
-            clearError();
+            await withNavLock(async () => {
+                clearError();
 
-            if (currentMode === "rendition" && rendition) {
-                try {
-                    await rendition.prev();
+                if (currentMode === "flow" && isMobileLike()) {
+                    await flowPagePrev();
                     return;
-                } catch {}
-            }
+                }
 
-            const prevSection = getSectionByIndex(currentSectionIndex - 1);
-            if (prevSection) {
-                await renderSection(prevSection.href, "flow");
-            }
+                if (currentMode === "rendition" && rendition) {
+                    try {
+                        await rendition.prev();
+                        return;
+                    } catch {}
+                }
+
+                const prevSection = getSectionByIndex(currentSectionIndex - 1);
+                if (prevSection) {
+                    await renderSection(prevSection.href, currentMode === "rendition" ? "rendition" : "flow");
+                }
+            });
         }
 
         async function nextAction() {
-            clearError();
+            await withNavLock(async () => {
+                clearError();
 
-            if (currentMode === "rendition" && rendition) {
-                try {
-                    await rendition.next();
+                if (currentMode === "flow" && isMobileLike()) {
+                    await flowPageNext();
                     return;
-                } catch {}
-            }
+                }
 
-            const nextSection = getSectionByIndex(currentSectionIndex + 1);
-            if (nextSection) {
-                await renderSection(nextSection.href, "flow");
-            }
+                if (currentMode === "rendition" && rendition) {
+                    try {
+                        await rendition.next();
+                        return;
+                    } catch {}
+                }
+
+                const nextSection = getSectionByIndex(currentSectionIndex + 1);
+                if (nextSection) {
+                    await renderSection(nextSection.href, currentMode === "rendition" ? "rendition" : "flow");
+                }
+            });
         }
 
         function installUi() {
@@ -1264,7 +1327,7 @@
 
         async function start() {
             installUi();
-            installFlowTapBehavior();
+            installFlowTouchBehavior();
 
             try {
                 book = ePub(EPUB_URL);
