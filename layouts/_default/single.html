@@ -11,7 +11,6 @@
 
     <style>
         :root {
-            --bg: #0f1115;
             --panel: rgba(15,17,21,0.82);
             --text: #e8ecf3;
             --muted: #9aa4b2;
@@ -40,10 +39,6 @@
             background: linear-gradient(180deg, #0d1015 0%, #11161d 100%);
             color: var(--text);
             font-family: Inter, "PingFang SC", "SF Pro Display", "Segoe UI", sans-serif;
-            overflow: hidden;
-        }
-
-        body {
             overflow: hidden;
         }
 
@@ -254,6 +249,7 @@
             overflow: hidden;
             box-shadow: var(--shadow);
             flex-direction: column;
+            position: relative;
         }
 
         .viewer-panel.active {
@@ -279,6 +275,31 @@
             height: 100%;
             overflow: hidden;
             position: relative;
+        }
+
+        #rendition-mobile-taps {
+            display: none;
+        }
+
+        .rendition-tap-zone {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            z-index: 25;
+            background: transparent;
+            pointer-events: auto;
+        }
+
+        #rendition-tap-prev {
+            left: 0;
+            width: 22vw;
+            max-width: 140px;
+        }
+
+        #rendition-tap-next {
+            right: 0;
+            width: 22vw;
+            max-width: 140px;
         }
 
         .status {
@@ -340,31 +361,6 @@
             text-decoration: underline;
         }
 
-        #viewer-flow blockquote {
-            margin: 1em 0;
-            padding-left: 1em;
-            border-left: 4px solid #d5dbe5;
-            color: #334155;
-        }
-
-        #viewer-flow hr {
-            border: none;
-            border-top: 1px solid #d8dee8;
-            margin: 1.6em 0;
-        }
-
-        #viewer-flow table {
-            border-collapse: collapse;
-            display: block;
-            overflow-x: auto;
-        }
-
-        #viewer-flow th,
-        #viewer-flow td {
-            border: 1px solid #d8dee8;
-            padding: 0.45em 0.6em;
-        }
-
         .controls {
             height: var(--controls-height);
             min-height: var(--controls-height);
@@ -399,10 +395,6 @@
             background: rgba(255,255,255,0.06);
             color: var(--text);
             border: 1px solid var(--border);
-        }
-
-        .nav-btn:hover {
-            background: rgba(255,255,255,0.1);
         }
 
         #page-info {
@@ -501,6 +493,14 @@
                 line-height: 1.82;
             }
 
+            #rendition-mobile-taps {
+                display: block;
+                position: absolute;
+                inset: 0;
+                z-index: 24;
+                pointer-events: none;
+            }
+
             .controls {
                 display: none;
             }
@@ -565,7 +565,7 @@
         <main id="main">
             <div id="topbar">
                 <div id="topbar-left">
-                    <a id="backBtn" class="top-btn" href="{{ "/" | relURL }}">← Library</a>
+                    <a id="backBtn" class="top-btn" href="../../">← Library</a>
                     <button id="menuBtn" class="top-btn" type="button">目录</button>
                 </div>
 
@@ -588,6 +588,10 @@
 
                 <div id="renditionPanel" class="viewer-panel">
                     <div id="viewer-rendition"></div>
+                    <div id="rendition-mobile-taps">
+                        <button id="rendition-tap-prev" class="rendition-tap-zone" type="button" aria-label="Previous page"></button>
+                        <button id="rendition-tap-next" class="rendition-tap-zone" type="button" aria-label="Next page"></button>
+                    </div>
                 </div>
             </div>
 
@@ -613,7 +617,6 @@
         const DEFAULT_MODE = `{{ .Params.reader_mode | default "flow" }}`;
 
         const MOBILE_BREAKPOINT = 900;
-        const TAP_EDGE_RATIO = 0.32;
         const TOUCH_MOVE_THRESHOLD = 14;
         const TAP_MAX_DURATION_MS = 350;
         const NAV_LOCK_MS = 220;
@@ -635,6 +638,9 @@
         const nextBtn = document.getElementById("nextBtn");
         const pageInfo = document.getElementById("page-info");
         const messageEl = document.getElementById("message");
+
+        const renditionTapPrev = document.getElementById("rendition-tap-prev");
+        const renditionTapNext = document.getElementById("rendition-tap-next");
 
         let book = null;
         let rendition = null;
@@ -674,13 +680,6 @@
             if (!target) return null;
             const el = target.nodeType === 1 ? target : target.parentElement;
             return el && el.closest ? el.closest("a[href]") : null;
-        }
-
-        function getTapZone(clientX, width = window.innerWidth) {
-            const ratio = clientX / Math.max(width, 1);
-            if (ratio < TAP_EDGE_RATIO) return "prev";
-            if (ratio > 1 - TAP_EDGE_RATIO) return "next";
-            return "center";
         }
 
         function closeSidebar() {
@@ -802,7 +801,6 @@
             } catch {}
 
             if (section) return section;
-
             return spineItems.find(item => normalizeHref(item.href) === clean) || null;
         }
 
@@ -880,7 +878,6 @@
                 nextBtn.disabled = isFlowAtBottom() && currentSectionIndex >= spineItems.length - 1;
                 return;
             }
-
             prevBtn.disabled = false;
             nextBtn.disabled = false;
         }
@@ -977,87 +974,35 @@
             });
         }
 
-        function attachTapNavigation(target, getWidth, onPrev, onNext, onCenter) {
-            let startX = 0;
+        function installFlowTouchBehavior() {
             let startY = 0;
-            let startTime = 0;
             let moved = false;
             let startedOnAnchor = false;
-            let lastTouchHandledAt = 0;
+            let startTime = 0;
 
-            target.addEventListener("touchstart", (e) => {
+            viewerFlow.addEventListener("touchstart", (e) => {
                 if (!isMobileLike()) return;
                 if (!e.touches || e.touches.length !== 1) return;
-
-                const t = e.touches[0];
-                startX = t.clientX;
-                startY = t.clientY;
-                startTime = Date.now();
+                startY = e.touches[0].clientY;
                 moved = false;
                 startedOnAnchor = !!closestAnchor(e.target);
+                startTime = Date.now();
             }, { passive: true });
 
-            target.addEventListener("touchmove", (e) => {
+            viewerFlow.addEventListener("touchmove", (e) => {
                 if (!isMobileLike()) return;
                 if (!e.touches || e.touches.length !== 1) return;
-
-                const t = e.touches[0];
-                if (
-                    Math.abs(t.clientX - startX) > TOUCH_MOVE_THRESHOLD ||
-                    Math.abs(t.clientY - startY) > TOUCH_MOVE_THRESHOLD
-                ) {
+                if (Math.abs(e.touches[0].clientY - startY) > TOUCH_MOVE_THRESHOLD) {
                     moved = true;
                 }
             }, { passive: true });
 
-            target.addEventListener("touchend", async (e) => {
+            viewerFlow.addEventListener("touchend", async () => {
                 if (!isMobileLike()) return;
                 if (startedOnAnchor || moved) return;
                 if (Date.now() - startTime > TAP_MAX_DURATION_MS) return;
-                if (!e.changedTouches || !e.changedTouches.length) return;
-
-                const t = e.changedTouches[0];
-                const zone = getTapZone(t.clientX, getWidth());
-                lastTouchHandledAt = Date.now();
-
-                if (zone === "prev") {
-                    await onPrev();
-                } else if (zone === "next") {
-                    await onNext();
-                } else {
-                    await onCenter();
-                }
+                toggleChrome();
             }, { passive: true });
-
-            target.addEventListener("click", async (e) => {
-                if (!isMobileLike()) return;
-                if (closestAnchor(e.target)) return;
-                if (Date.now() - lastTouchHandledAt < 500) return;
-
-                const x = typeof e.clientX === "number" ? e.clientX : window.innerWidth / 2;
-                const zone = getTapZone(x, getWidth());
-
-                if (zone === "prev") {
-                    e.preventDefault();
-                    await onPrev();
-                } else if (zone === "next") {
-                    e.preventDefault();
-                    await onNext();
-                } else {
-                    e.preventDefault();
-                    await onCenter();
-                }
-            }, true);
-        }
-
-        function installFlowTouchBehavior() {
-            attachTapNavigation(
-                viewerFlow,
-                () => window.innerWidth,
-                async () => { await prevAction(); },
-                async () => { await nextAction(); },
-                async () => { toggleChrome(); }
-            );
         }
 
         async function flowPagePrev() {
@@ -1121,9 +1066,7 @@
             const after = await waitForNextRelocation(700);
             const afterIndex = spineIndexFromLocation(after);
 
-            if (!isMobileLike()) {
-                return;
-            }
+            if (!isMobileLike()) return;
 
             const jumpedBackward =
                 direction === "next" &&
@@ -1138,7 +1081,6 @@
                 afterIndex > beforeIndex;
 
             if (jumpedBackward || jumpedForward) {
-                console.warn("Mobile paginated bounce detected. Falling back to flow mode.");
                 showError("This page was unstable in paginated mode. Switched to flow mode.");
                 await renderSection(beforeTarget, "flow");
             }
@@ -1206,14 +1148,6 @@
                     await renderSection(resolved.displayHref, "rendition");
                 }, true);
 
-                attachTapNavigation(
-                    doc,
-                    () => contents.window.innerWidth || window.innerWidth,
-                    async () => { await prevAction(); },
-                    async () => { await nextAction(); },
-                    async () => { toggleChrome(); }
-                );
-
                 setTimeout(stabilizeRenditionLayout, 40);
             });
 
@@ -1237,8 +1171,7 @@
                 stabilizeRenditionLayout();
             });
 
-            rendition.on("displayError", (err) => {
-                console.warn("Rendition display error:", err);
+            rendition.on("displayError", () => {
                 showError("This chapter failed in rendition mode.");
             });
 
@@ -1278,9 +1211,7 @@
             updatePageInfo();
 
             const fragment = getFragment(displayHref);
-            if (fragment) {
-                scrollToFragmentInFlow(fragment);
-            }
+            if (fragment) scrollToFragmentInFlow(fragment);
 
             if (typeof section.unload === "function") {
                 section.unload();
@@ -1327,15 +1258,12 @@
                     await renderFlow(displayHref, cleanHref, section);
                 }
             } catch (err1) {
-                console.warn(`Primary render failed in ${primaryMode}, trying ${backupMode}`, err1);
-
                 try {
                     if (backupMode === "rendition") {
                         await renderRendition(displayHref, cleanHref, section);
                     } else {
                         await renderFlow(displayHref, cleanHref, section);
                     }
-
                     showError(`Primary mode failed. Switched to ${backupMode}.`);
                 } catch (err2) {
                     console.error("Both render modes failed.", err1, err2);
@@ -1360,9 +1288,7 @@
                 }
 
                 const prevSection = getSectionByIndex(currentSectionIndex - 1);
-                if (prevSection) {
-                    await renderSection(prevSection.href, currentMode);
-                }
+                if (prevSection) await renderSection(prevSection.href, currentMode);
             });
         }
 
@@ -1382,9 +1308,7 @@
                 }
 
                 const nextSection = getSectionByIndex(currentSectionIndex + 1);
-                if (nextSection) {
-                    await renderSection(nextSection.href, currentMode);
-                }
+                if (nextSection) await renderSection(nextSection.href, currentMode);
             });
         }
 
@@ -1406,9 +1330,31 @@
             prevBtn.addEventListener("click", prevAction);
             nextBtn.addEventListener("click", nextAction);
 
+            renditionTapPrev.addEventListener("click", async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (currentMode === "rendition" && isMobileLike()) {
+                    await prevAction();
+                }
+            });
+
+            renditionTapNext.addEventListener("click", async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (currentMode === "rendition" && isMobileLike()) {
+                    await nextAction();
+                }
+            });
+
             viewerFlow.addEventListener("scroll", () => {
                 if (currentMode === "flow") updateButtons();
             }, { passive: true });
+
+            viewerRendition.addEventListener("click", () => {
+                if (currentMode === "rendition" && isMobileLike()) {
+                    toggleChrome();
+                }
+            });
 
             window.addEventListener("keydown", async (e) => {
                 if (e.key === "ArrowLeft" || e.key === "PageUp") {
@@ -1420,9 +1366,6 @@
                 } else if (e.key.toLowerCase() === "m") {
                     e.preventDefault();
                     toggleSidebar();
-                } else if (e.key.toLowerCase() === "h") {
-                    e.preventDefault();
-                    if (isMobileLike()) toggleChrome();
                 }
             });
 
